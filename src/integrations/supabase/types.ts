@@ -14,7 +14,173 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agents: {
+        Row: {
+          created_at: string
+          description: string | null
+          first_message: string
+          id: string
+          industry: string
+          language: string
+          model: string
+          model_provider: string
+          name: string
+          system_prompt: string
+          temperature: number
+          updated_at: string
+          user_id: string
+          vapi_assistant_id: string | null
+          voice_id: string
+          voice_provider: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          first_message: string
+          id?: string
+          industry: string
+          language?: string
+          model?: string
+          model_provider?: string
+          name: string
+          system_prompt: string
+          temperature?: number
+          updated_at?: string
+          user_id: string
+          vapi_assistant_id?: string | null
+          voice_id?: string
+          voice_provider?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          first_message?: string
+          id?: string
+          industry?: string
+          language?: string
+          model?: string
+          model_provider?: string
+          name?: string
+          system_prompt?: string
+          temperature?: number
+          updated_at?: string
+          user_id?: string
+          vapi_assistant_id?: string | null
+          voice_id?: string
+          voice_provider?: string
+        }
+        Relationships: []
+      }
+      calls: {
+        Row: {
+          agent_id: string | null
+          cost_usd: number | null
+          created_at: string
+          direction: string
+          duration_sec: number | null
+          from_number: string | null
+          id: string
+          recording_url: string | null
+          status: string
+          to_number: string | null
+          transcript: Json | null
+          user_id: string
+          vapi_call_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          direction?: string
+          duration_sec?: number | null
+          from_number?: string | null
+          id?: string
+          recording_url?: string | null
+          status?: string
+          to_number?: string | null
+          transcript?: Json | null
+          user_id: string
+          vapi_call_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          direction?: string
+          duration_sec?: number | null
+          from_number?: string | null
+          id?: string
+          recording_url?: string | null
+          status?: string
+          to_number?: string | null
+          transcript?: Json | null
+          user_id?: string
+          vapi_call_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      phone_numbers: {
+        Row: {
+          created_at: string
+          e164: string
+          id: string
+          label: string | null
+          twilio_sid: string | null
+          user_id: string
+          vapi_number_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          e164: string
+          id?: string
+          label?: string | null
+          twilio_sid?: string | null
+          user_id: string
+          vapi_number_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          e164?: string
+          id?: string
+          label?: string | null
+          twilio_sid?: string | null
+          user_id?: string
+          vapi_number_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
