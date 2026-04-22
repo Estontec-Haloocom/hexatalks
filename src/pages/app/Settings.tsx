@@ -7,7 +7,7 @@ const Settings = () => {
   return (
     <>
       <PageHeader title="Settings" description="Account and integrations." />
-      <div className="space-y-4 p-8">
+      <div className="space-y-4 px-5 py-6 sm:p-8">
         <Card className="p-6">
           <h3 className="font-semibold">Account</h3>
           <p className="mt-1 text-sm text-muted-foreground">Signed in as {user?.email}</p>
