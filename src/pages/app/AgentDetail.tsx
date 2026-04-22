@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
-import { VOICES, MODELS, INDUSTRIES } from "@/lib/industries";
+import { VOICES, LANGUAGES, INDUSTRIES } from "@/lib/industries";
 import Vapi from "@vapi-ai/web";
 import { cn } from "@/lib/utils";
 
@@ -25,18 +24,14 @@ const AgentDetail = () => {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Test tab
   const [callStatus, setCallStatus] = useState<"idle" | "connecting" | "active" | "ended">("idle");
   const [volume, setVolume] = useState(0);
   const [transcript, setTranscript] = useState<Turn[]>([]);
   const vapiRef = useRef<Vapi | null>(null);
-  const [vapiReady, setVapiReady] = useState(false);
 
-  // Phone tab
   const [destNumber, setDestNumber] = useState("");
   const [placing, setPlacing] = useState(false);
 
-  // Calls history
   const [calls, setCalls] = useState<any[]>([]);
 
   useEffect(() => {
@@ -50,7 +45,7 @@ const AgentDetail = () => {
     setSaving(true);
     const { error } = await supabase.from("agents").update({
       name: agent.name, system_prompt: agent.system_prompt, first_message: agent.first_message,
-      voice_id: agent.voice_id, model: agent.model, temperature: agent.temperature,
+      voice_id: agent.voice_id, language: agent.language,
     }).eq("id", agent.id);
     setSaving(false);
     toast({ title: error ? "Save failed" : "Saved", description: error?.message, variant: error ? "destructive" : undefined });
@@ -67,8 +62,8 @@ const AgentDetail = () => {
 
       const vapi = new Vapi(data.publicKey);
       vapiRef.current = vapi;
-      vapi.on("call-start", () => { setCallStatus("active"); setVapiReady(true); });
-      vapi.on("call-end", () => { setCallStatus("ended"); setVolume(0); setVapiReady(false); });
+      vapi.on("call-start", () => setCallStatus("active"));
+      vapi.on("call-end", () => { setCallStatus("ended"); setVolume(0); });
       vapi.on("volume-level", (v: number) => setVolume(v));
       vapi.on("message", (m: any) => {
         if (m.type === "transcript" && m.transcriptType === "final") {
@@ -83,7 +78,7 @@ const AgentDetail = () => {
       await vapi.start({
         name: agent.name,
         firstMessage: agent.first_message,
-        model: { provider: "openai", model: agent.model, temperature: Number(agent.temperature),
+        model: { provider: "openai", model: agent.model || "gpt-4o-mini", temperature: Number(agent.temperature ?? 0.7),
           messages: [{ role: "system", content: agent.system_prompt }] },
         voice: { provider: "11labs", voiceId: agent.voice_id },
       });
@@ -123,19 +118,20 @@ const AgentDetail = () => {
         description={ind?.name}
         actions={<Button asChild variant="ghost" size="sm"><Link to="/app/agents"><ArrowLeft className="h-4 w-4" /> All agents</Link></Button>}
       />
-      <div className="p-8">
+      <div className="px-5 py-6 sm:p-8">
         <Tabs defaultValue="test">
-          <TabsList>
-            <TabsTrigger value="test">Test</TabsTrigger>
-            <TabsTrigger value="configure">Configure</TabsTrigger>
-            <TabsTrigger value="phone">Phone</TabsTrigger>
-            <TabsTrigger value="calls">Calls</TabsTrigger>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="test" className="flex-1 sm:flex-initial">Test</TabsTrigger>
+            <TabsTrigger value="configure" className="flex-1 sm:flex-initial">Configure</TabsTrigger>
+            <TabsTrigger value="phone" className="flex-1 sm:flex-initial">Phone</TabsTrigger>
+            <TabsTrigger value="calls" className="flex-1 sm:flex-initial">Calls</TabsTrigger>
           </TabsList>
 
           <TabsContent value="test" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-              <Card className="grid place-items-center p-10">
-                <VoiceOrb active={callStatus === "active"} volume={volume} size={300} />
+              <Card className="grid place-items-center p-6 sm:p-10">
+                <VoiceOrb active={callStatus === "active"} volume={volume} size={240} className="sm:hidden" />
+                <VoiceOrb active={callStatus === "active"} volume={volume} size={300} className="hidden sm:block" />
                 <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
                   <span className={cn("h-1.5 w-1.5 rounded-full",
                     callStatus === "active" ? "bg-success animate-pulse" :
@@ -146,7 +142,7 @@ const AgentDetail = () => {
                   {callStatus === "active" && (volume > 0.05 ? "Listening" : "Speaking")}
                   {callStatus === "ended" && "Call ended"}
                 </div>
-                <div className="mt-8">
+                <div className="mt-7">
                   {callStatus === "active" || callStatus === "connecting" ? (
                     <Button size="lg" variant="destructive" onClick={endCall}><MicOff className="h-4 w-4" /> End call</Button>
                   ) : (
@@ -154,7 +150,7 @@ const AgentDetail = () => {
                   )}
                 </div>
               </Card>
-              <Card className="flex h-[500px] flex-col p-0">
+              <Card className="flex h-[420px] flex-col p-0 lg:h-[500px]">
                 <div className="border-b border-border px-5 py-3 text-sm font-medium">Live transcript</div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-5">
                   {transcript.length === 0 && <div className="text-sm text-muted-foreground">Start the call to see the transcript here.</div>}
@@ -169,7 +165,7 @@ const AgentDetail = () => {
           </TabsContent>
 
           <TabsContent value="configure" className="mt-6">
-            <Card className="space-y-5 p-8">
+            <Card className="space-y-5 p-5 sm:p-8">
               <div className="space-y-1.5">
                 <Label>Name</Label>
                 <Input value={agent.name} onChange={(e) => setAgent({ ...agent, name: e.target.value })} />
@@ -184,39 +180,34 @@ const AgentDetail = () => {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>Voice</Label>
+                  <Label>Character voice</Label>
                   <select value={agent.voice_id} onChange={(e) => setAgent({ ...agent, voice_id: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                    {VOICES.map((v) => <option key={v.id} value={v.id}>{v.label} — {v.description}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Model</Label>
-                  <select value={agent.model} onChange={(e) => setAgent({ ...agent, model: e.target.value })}
+                  <Label>Language</Label>
+                  <select value={agent.language || "en-US"} onChange={(e) => setAgent({ ...agent, language: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                 </div>
-              </div>
-              <div>
-                <div className="mb-2 flex justify-between"><Label>Temperature</Label><span className="text-sm text-muted-foreground">{Number(agent.temperature).toFixed(1)}</span></div>
-                <Slider value={[Number(agent.temperature)]} min={0} max={1} step={0.1}
-                  onValueChange={(v) => setAgent({ ...agent, temperature: v[0] })} />
               </div>
               <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save changes</Button>
             </Card>
           </TabsContent>
 
           <TabsContent value="phone" className="mt-6">
-            <Card className="p-8">
+            <Card className="p-5 sm:p-8">
               <h3 className="font-semibold">Place an outbound call</h3>
               <p className="mt-1 text-sm text-muted-foreground">Your agent will call this number from one of your attached phone numbers.</p>
               <div className="mt-5 flex flex-wrap items-end gap-3">
-                <div className="min-w-[280px] flex-1 space-y-1.5">
+                <div className="min-w-[240px] flex-1 space-y-1.5">
                   <Label>Destination phone (E.164)</Label>
                   <Input placeholder="+15551234567" value={destNumber} onChange={(e) => setDestNumber(e.target.value)} />
                 </div>
-                <Button onClick={placeCall} disabled={placing || !destNumber}>
+                <Button onClick={placeCall} disabled={placing || !destNumber} className="w-full sm:w-auto">
                   {placing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Place call
                 </Button>
               </div>
