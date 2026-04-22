@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Hexagon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import logo from "@/assets/hexatalks-logo.webp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,9 +49,8 @@ const Auth = () => {
     <div className="min-h-screen bg-hero">
       <div className="container flex min-h-screen items-center justify-center py-12">
         <div className="w-full max-w-md">
-          <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground"><Hexagon className="h-4 w-4" /></span>
-            <span className="text-lg font-semibold tracking-tight">Hexatalks</span>
+          <Link to="/" className="mb-8 flex items-center justify-center">
+            <img src={logo} alt="Hexatalks" className="h-10 w-auto" />
           </Link>
           <Card className="p-8 shadow-[var(--shadow-soft)]">
             <h1 className="font-display text-3xl tracking-tight">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
