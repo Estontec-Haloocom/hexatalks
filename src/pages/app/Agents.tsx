@@ -25,7 +25,7 @@ const Agents = () => {
       <PageHeader title="Agents" description="Voice AI agents you've created." actions={
         <Button asChild><Link to="/app/agents/new"><Plus className="h-4 w-4" /> New agent</Link></Button>
       } />
-      <div className="p-8">
+      <div className="px-5 py-6 sm:p-8">
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : agents.length === 0 ? (

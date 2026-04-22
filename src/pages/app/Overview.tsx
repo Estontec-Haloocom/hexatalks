@@ -29,23 +29,23 @@ const Overview = () => {
   return (
     <>
       <PageHeader title="Overview" description="Your voice AI workspace at a glance." />
-      <div className="space-y-8 p-8">
-        <div className="grid gap-4 sm:grid-cols-3">
+      <div className="space-y-6 px-5 py-6 sm:space-y-8 sm:p-8">
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-3">
           {cards.map((c) => (
-            <Card key={c.label} className="p-6">
+            <Card key={c.label} className="p-5 sm:p-6">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{c.label}</span>
                 <c.icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div className="mt-3 font-display text-4xl tracking-tight">{c.value}</div>
+              <div className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">{c.value}</div>
             </Card>
           ))}
         </div>
 
-        <Card className="overflow-hidden bg-gradient-to-br from-primary to-primary/85 p-8 text-primary-foreground">
-          <h2 className="font-display text-2xl tracking-tight">Build your first voice agent</h2>
+        <Card className="overflow-hidden bg-gradient-to-br from-primary to-primary/85 p-6 text-primary-foreground sm:p-8">
+          <h2 className="font-display text-xl tracking-tight sm:text-2xl">Build your first voice agent</h2>
           <p className="mt-2 max-w-xl text-sm opacity-80">Pick an industry, describe your business, and we'll generate a production-ready agent in 60 seconds.</p>
-          <Button asChild className="mt-5" variant="secondary"><Link to="/app/agents/new">Get started <ArrowRight className="ml-1 h-4 w-4" /></Link></Button>
+          <Button asChild className="mt-5 w-full sm:w-auto" variant="secondary"><Link to="/app/agents/new">Get started <ArrowRight className="ml-1 h-4 w-4" /></Link></Button>
         </Card>
       </div>
     </>
