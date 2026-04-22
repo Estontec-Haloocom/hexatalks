@@ -1,9 +1,10 @@
 import { ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Hexagon, LayoutDashboard, Bot, Phone, Settings, LogOut, Plus } from "lucide-react";
+import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import logo from "@/assets/hexatalks-logo.webp";
 
 const nav = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
@@ -18,9 +19,8 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="flex min-h-screen w-full bg-surface">
       <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border bg-background">
-        <Link to="/" className="flex h-16 items-center gap-2 border-b border-border px-5">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground"><Hexagon className="h-3.5 w-3.5" /></span>
-          <span className="text-sm font-semibold tracking-tight">Hexatalks</span>
+        <Link to="/" className="flex h-16 items-center border-b border-border px-5">
+          <img src={logo} alt="Hexatalks" className="h-7 w-auto" />
         </Link>
         <div className="px-3 pt-4">
           <Button onClick={() => navigate("/app/agents/new")} className="w-full" size="sm"><Plus className="h-4 w-4" /> New agent</Button>

@@ -5,6 +5,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Auth from "./pages/Auth.tsx";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/app/AppLayout";
+import Overview from "./pages/app/Overview.tsx";
+import Agents from "./pages/app/Agents.tsx";
+import NewAgent from "./pages/app/NewAgent.tsx";
+import AgentDetail from "./pages/app/AgentDetail.tsx";
+import PhoneNumbers from "./pages/app/PhoneNumbers.tsx";
+import Settings from "./pages/app/Settings.tsx";
 
 const queryClient = new QueryClient();
 
@@ -14,11 +23,20 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/app" element={<ProtectedRoute><Overview /></ProtectedRoute>} />
+            <Route path="/app/agents" element={<ProtectedRoute><Agents /></ProtectedRoute>} />
+            <Route path="/app/agents/new" element={<ProtectedRoute><NewAgent /></ProtectedRoute>} />
+            <Route path="/app/agents/:id" element={<ProtectedRoute><AgentDetail /></ProtectedRoute>} />
+            <Route path="/app/phone-numbers" element={<ProtectedRoute><PhoneNumbers /></ProtectedRoute>} />
+            <Route path="/app/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
