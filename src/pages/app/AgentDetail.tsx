@@ -18,6 +18,16 @@ import { cn } from "@/lib/utils";
 type Agent = any;
 type Turn = { role: "user" | "assistant"; text: string };
 
+// Friendly character names → ElevenLabs voice IDs
+const VOICE_MAP: Record<string, string> = {
+  jennifer: "21m00Tcm4TlvDq8ikWAM",
+  ryan: "ErXwobaYiN019PkySvjV",
+  sarah: "EXAVITQu4vr4xnSDxMaL",
+  mark: "VR6AewLTigWG4xSOukaG",
+  ava: "MF3mGyEYCl7XYWbV9V6O",
+  leo: "pNInz6obpgDQGcFmaJgB",
+};
+
 const AgentDetail = () => {
   const { id } = useParams();
   const { toast } = useToast();
@@ -56,9 +66,13 @@ const AgentDetail = () => {
     setCallStatus("connecting");
     setTranscript([]);
     try {
+      // Ask for mic permission up front for a smoother first-time experience
+      try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
+
       const { data, error } = await supabase.functions.invoke("vapi-web-token");
       if (error) throw error;
-      if (!data?.publicKey) throw new Error("Voice service not configured. Add your Vapi public key in Settings.");
+      if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
 
       const vapi = new Vapi(data.publicKey);
       vapiRef.current = vapi;
@@ -75,12 +89,14 @@ const AgentDetail = () => {
         setCallStatus("idle");
       });
 
+      const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
       await vapi.start({
         name: agent.name,
         firstMessage: agent.first_message,
         model: { provider: "openai", model: agent.model || "gpt-4o-mini", temperature: Number(agent.temperature ?? 0.7),
           messages: [{ role: "system", content: agent.system_prompt }] },
-        voice: { provider: "11labs", voiceId: agent.voice_id },
+        voice: { provider: "11labs", voiceId },
+        transcriber: { provider: "deepgram", model: "nova-2", language: (agent.language || "en-US").slice(0, 2) },
       });
     } catch (e: any) {
       toast({ title: "Could not start call", description: e.message, variant: "destructive" });
