@@ -58,15 +58,25 @@ export const INDUSTRIES: Industry[] = [
   },
 ];
 
+// Character voices — friendly names, no provider/model jargon
 export const VOICES = [
-  { id: "jennifer", label: "Jennifer", description: "Warm, professional female (US)" },
-  { id: "ryan", label: "Ryan", description: "Confident male (US)" },
-  { id: "sarah", label: "Sarah", description: "Friendly female (UK)" },
-  { id: "mark", label: "Mark", description: "Calm male (US)" },
+  { id: "jennifer", label: "Jennifer", description: "Warm, professional · Female" },
+  { id: "ryan", label: "Ryan", description: "Confident, clear · Male" },
+  { id: "sarah", label: "Sarah", description: "Friendly, British · Female" },
+  { id: "mark", label: "Mark", description: "Calm, reassuring · Male" },
+  { id: "ava", label: "Ava", description: "Bright, youthful · Female" },
+  { id: "leo", label: "Leo", description: "Deep, authoritative · Male" },
 ];
 
-export const MODELS = [
-  { id: "gpt-4o-mini", label: "GPT-4o mini · fast & cheap" },
-  { id: "gpt-4o", label: "GPT-4o · best quality" },
-  { id: "gpt-3.5-turbo", label: "GPT-3.5 Turbo · lowest latency" },
+export const LANGUAGES = [
+  { id: "en-US", label: "English (US)" },
+  { id: "en-GB", label: "English (UK)" },
+  { id: "es-ES", label: "Spanish" },
+  { id: "fr-FR", label: "French" },
+  { id: "de-DE", label: "German" },
+  { id: "hi-IN", label: "Hindi" },
+  { id: "pt-BR", label: "Portuguese (BR)" },
+  { id: "it-IT", label: "Italian" },
+  { id: "ja-JP", label: "Japanese" },
+  { id: "zh-CN", label: "Mandarin" },
 ];
