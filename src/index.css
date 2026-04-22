@@ -111,5 +111,9 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
+  .font-display { font-family: 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; }
+  .bg-hero { background-image: var(--gradient-hero); }
 }
