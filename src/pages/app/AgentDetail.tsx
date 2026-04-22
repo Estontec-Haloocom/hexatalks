@@ -18,6 +18,18 @@ import { cn } from "@/lib/utils";
 type Agent = any;
 type Turn = { role: "user" | "assistant"; text: string };
 
+// Extract a human-readable message from Vapi's error payloads (often nested objects)
+const fmtErr = (e: any): string => {
+  if (!e) return "Unknown error";
+  if (typeof e === "string") return e;
+  if (e.message && typeof e.message === "string") return e.message;
+  if (e.error?.message) return e.error.message;
+  if (e.errorMsg) return e.errorMsg;
+  if (e.error && typeof e.error === "string") return e.error;
+  if (Array.isArray(e?.error?.message)) return e.error.message.join(", ");
+  try { return JSON.stringify(e); } catch { return String(e); }
+};
+
 // Friendly character names → ElevenLabs voice IDs
 const VOICE_MAP: Record<string, string> = {
   jennifer: "21m00Tcm4TlvDq8ikWAM",
@@ -85,7 +97,9 @@ const AgentDetail = () => {
         }
       });
       vapi.on("error", (e: any) => {
-        toast({ title: "Call error", description: e?.message ?? String(e), variant: "destructive" });
+        const msg = fmtErr(e);
+        console.error("Vapi error:", e);
+        toast({ title: "Call error", description: msg, variant: "destructive" });
         setCallStatus("idle");
       });
 
@@ -99,7 +113,8 @@ const AgentDetail = () => {
         transcriber: { provider: "deepgram", model: "nova-2", language: (agent.language || "en-US").slice(0, 2) },
       });
     } catch (e: any) {
-      toast({ title: "Could not start call", description: e.message, variant: "destructive" });
+      console.error("startCall failed:", e);
+      toast({ title: "Could not start call", description: fmtErr(e), variant: "destructive" });
       setCallStatus("idle");
     }
   };
