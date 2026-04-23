@@ -56,6 +56,10 @@ export const useVapiConfig = () => {
         languages: Array.isArray(data?.languages) && data.languages.length > 0 ? data.languages : fallbackLanguages,
       };
     },
+    initialData: {
+      voices: fallbackVoices,
+      languages: fallbackLanguages,
+    },
     staleTime: 1000 * 60 * 10,
     retry: 1,
   });
