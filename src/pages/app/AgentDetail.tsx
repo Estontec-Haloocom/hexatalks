@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
-import { VOICES, LANGUAGES, INDUSTRIES } from "@/lib/industries";
+import { INDUSTRIES } from "@/lib/industries";
+import { useVapiConfig } from "@/hooks/use-vapi-config";
 import Vapi from "@vapi-ai/web";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +65,7 @@ const AgentDetail = () => {
   const [placing, setPlacing] = useState(false);
 
   const [calls, setCalls] = useState<any[]>([]);
+  const { data: vapiConfig } = useVapiConfig();
 
   useEffect(() => {
     if (!id) return;
