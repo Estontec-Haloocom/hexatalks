@@ -47,6 +47,7 @@ serve(async (req) => {
     }
 
     const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
+    const voiceProvider = agent.voice_provider || "11labs";
 
     const res = await fetch("https://api.vapi.ai/call", {
       method: "POST",
@@ -63,7 +64,7 @@ serve(async (req) => {
             temperature: Number(agent.temperature ?? 0.7),
             messages: [{ role: "system", content: agent.system_prompt }],
           },
-          voice: { provider: "11labs", voiceId },
+          voice: { provider: voiceProvider, voiceId },
         },
       }),
     });

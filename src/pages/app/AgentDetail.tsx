@@ -76,9 +76,10 @@ const AgentDetail = () => {
   const save = async () => {
     if (!agent) return;
     setSaving(true);
+    const selectedVoice = (vapiConfig?.voices ?? []).find((voice) => voice.id === agent.voice_id);
     const { error } = await supabase.from("agents").update({
       name: agent.name, system_prompt: agent.system_prompt, first_message: agent.first_message,
-      voice_id: agent.voice_id, language: agent.language,
+      voice_id: agent.voice_id, voice_provider: selectedVoice?.provider ?? agent.voice_provider ?? "11labs", language: agent.language,
     }).eq("id", agent.id);
     setSaving(false);
     toast({ title: error ? "Save failed" : "Saved", description: error ? fmtErr(error) : undefined, variant: error ? "destructive" : undefined });
