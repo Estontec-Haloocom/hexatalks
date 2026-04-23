@@ -132,7 +132,8 @@ const AgentDetail = () => {
       toast({ title: "Call queued", description: `Calling ${destNumber}…` });
       setDestNumber("");
     } catch (e: any) {
-      toast({ title: "Could not place call", description: e.message, variant: "destructive" });
+      console.error("placeCall failed:", e);
+      toast({ title: "Could not place call", description: fmtErr(e), variant: "destructive" });
     } finally {
       setPlacing(false);
     }
