@@ -10,8 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { INDUSTRIES, VOICES, LANGUAGES } from "@/lib/industries";
+import { INDUSTRIES } from "@/lib/industries";
+import { useVapiConfig } from "@/hooks/use-vapi-config";
 import { cn } from "@/lib/utils";
+
+const fmtErr = (value: any): string => {
+  if (value == null) return "Unknown error";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(fmtErr).join(", ");
+  if (typeof value === "object") return fmtErr(value.message ?? value.error ?? value.errorMsg ?? JSON.stringify(value));
+  return String(value);
+};
 
 const STEPS = ["Industry", "Describe", "Voice", "Review"];
 
@@ -28,8 +38,12 @@ const NewAgent = () => {
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { data: vapiConfig } = useVapiConfig();
 
   const ind = INDUSTRIES.find((i) => i.id === industry);
+  const voices = vapiConfig?.voices ?? [];
+  const languages = vapiConfig?.languages ?? [];
+  const selectedVoice = voices.find((voice) => voice.id === voiceId) ?? voices[0];
 
   const next = async () => {
     if (step === 0 && !industry) return;
@@ -52,7 +66,7 @@ const NewAgent = () => {
       setFirstMessage(data.first_message);
       if (!name) setName(data.suggested_name || `${ind.name} Agent`);
     } catch (err: any) {
-      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      toast({ title: "Generation failed", description: fmtErr(err), variant: "destructive" });
       setSystemPrompt(ind.starterPrompt);
       setFirstMessage(ind.starterFirstMessage);
     } finally {
@@ -72,14 +86,15 @@ const NewAgent = () => {
         description,
         system_prompt: systemPrompt,
         first_message: firstMessage,
-        voice_id: voiceId,
+        voice_id: selectedVoice?.id ?? voiceId,
+        voice_provider: selectedVoice?.provider ?? "11labs",
         language,
       }).select("id").single();
       if (error) throw error;
       toast({ title: "Agent created", description: "Open the Test tab to talk to it." });
       navigate(`/app/agents/${data.id}`);
     } catch (err: any) {
-      toast({ title: "Could not create agent", description: err.message, variant: "destructive" });
+      toast({ title: "Could not create agent", description: fmtErr(err), variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -170,7 +185,7 @@ const NewAgent = () => {
                   <div>
                     <Label className="mb-3 block">Character voice</Label>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {VOICES.map((v) => (
+                       {voices.map((v) => (
                         <button key={v.id} onClick={() => setVoiceId(v.id)} className={cn(
                           "rounded-lg border p-3 text-left transition-all",
                           voiceId === v.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
@@ -184,7 +199,7 @@ const NewAgent = () => {
                   <div>
                     <Label className="mb-3 block">Language</Label>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {LANGUAGES.map((l) => (
+                       {languages.map((l) => (
                         <button key={l.id} onClick={() => setLanguage(l.id)} className={cn(
                           "rounded-lg border px-3 py-2 text-left text-sm transition-all",
                           language === l.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
@@ -202,8 +217,8 @@ const NewAgent = () => {
                     {[
                       ["Name", name],
                       ["Industry", ind?.name],
-                      ["Voice", VOICES.find((v) => v.id === voiceId)?.label],
-                      ["Language", LANGUAGES.find((l) => l.id === language)?.label],
+                      ["Voice", voices.find((v) => v.id === voiceId)?.label],
+                      ["Language", languages.find((l) => l.id === language)?.label],
                       ["First message", firstMessage],
                     ].map(([k, v]) => (
                       <div key={k as string} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
