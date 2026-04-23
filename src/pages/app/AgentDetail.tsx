@@ -20,14 +20,23 @@ type Turn = { role: "user" | "assistant"; text: string };
 
 // Extract a human-readable message from Vapi's error payloads (often nested objects)
 const fmtErr = (e: any): string => {
-  if (!e) return "Unknown error";
-  if (typeof e === "string") return e;
-  if (e.message && typeof e.message === "string") return e.message;
-  if (e.error?.message) return e.error.message;
-  if (e.errorMsg) return e.errorMsg;
-  if (e.error && typeof e.error === "string") return e.error;
-  if (Array.isArray(e?.error?.message)) return e.error.message.join(", ");
-  try { return JSON.stringify(e); } catch { return String(e); }
+  const toText = (value: any): string | null => {
+    if (value == null) return null;
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value)) {
+      const items = value.map(toText).filter(Boolean);
+      return items.length ? items.join(", ") : null;
+    }
+    if (typeof value === "object") {
+      return toText(value.message) ?? toText(value.error) ?? toText(value.errorMsg) ?? (() => {
+        try { return JSON.stringify(value); } catch { return String(value); }
+      })();
+    }
+    return String(value);
+  };
+
+  return toText(e) ?? "Unknown error";
 };
 
 // Friendly character names → ElevenLabs voice IDs
@@ -70,7 +79,7 @@ const AgentDetail = () => {
       voice_id: agent.voice_id, language: agent.language,
     }).eq("id", agent.id);
     setSaving(false);
-    toast({ title: error ? "Save failed" : "Saved", description: error?.message, variant: error ? "destructive" : undefined });
+    toast({ title: error ? "Save failed" : "Saved", description: error ? fmtErr(error) : undefined, variant: error ? "destructive" : undefined });
   };
 
   const startCall = async () => {
