@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
-import { VOICES, LANGUAGES, INDUSTRIES } from "@/lib/industries";
+import { INDUSTRIES } from "@/lib/industries";
+import { useVapiConfig } from "@/hooks/use-vapi-config";
 import Vapi from "@vapi-ai/web";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +65,7 @@ const AgentDetail = () => {
   const [placing, setPlacing] = useState(false);
 
   const [calls, setCalls] = useState<any[]>([]);
+  const { data: vapiConfig } = useVapiConfig();
 
   useEffect(() => {
     if (!id) return;
@@ -74,9 +76,10 @@ const AgentDetail = () => {
   const save = async () => {
     if (!agent) return;
     setSaving(true);
+    const selectedVoice = (vapiConfig?.voices ?? []).find((voice) => voice.id === agent.voice_id);
     const { error } = await supabase.from("agents").update({
       name: agent.name, system_prompt: agent.system_prompt, first_message: agent.first_message,
-      voice_id: agent.voice_id, language: agent.language,
+      voice_id: agent.voice_id, voice_provider: selectedVoice?.provider ?? agent.voice_provider ?? "11labs", language: agent.language,
     }).eq("id", agent.id);
     setSaving(false);
     toast({ title: error ? "Save failed" : "Saved", description: error ? fmtErr(error) : undefined, variant: error ? "destructive" : undefined });
@@ -112,13 +115,15 @@ const AgentDetail = () => {
         setCallStatus("idle");
       });
 
+      const selectedVoice = (vapiConfig?.voices ?? []).find((voice) => voice.id === agent.voice_id);
       const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
+      const voiceProvider = agent.voice_provider || selectedVoice?.provider || "11labs";
       await vapi.start({
         name: agent.name,
         firstMessage: agent.first_message,
         model: { provider: "openai", model: agent.model || "gpt-4o-mini", temperature: Number(agent.temperature ?? 0.7),
           messages: [{ role: "system", content: agent.system_prompt }] },
-        voice: { provider: "11labs", voiceId },
+        voice: { provider: voiceProvider, voiceId },
         transcriber: { provider: "deepgram", model: "nova-2", language: (agent.language || "en-US").slice(0, 2) },
       });
     } catch (e: any) {
@@ -151,6 +156,8 @@ const AgentDetail = () => {
   if (!agent) return <div className="grid h-[60vh] place-items-center text-muted-foreground">Loading…</div>;
 
   const ind = INDUSTRIES.find((i) => i.id === agent.industry);
+  const voices = vapiConfig?.voices ?? [];
+  const languages = vapiConfig?.languages ?? [];
 
   return (
     <>
@@ -224,14 +231,14 @@ const AgentDetail = () => {
                   <Label>Character voice</Label>
                   <select value={agent.voice_id} onChange={(e) => setAgent({ ...agent, voice_id: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {VOICES.map((v) => <option key={v.id} value={v.id}>{v.label} — {v.description}</option>)}
+                    {voices.map((v) => <option key={v.id} value={v.id}>{v.label} — {v.description}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Language</Label>
                   <select value={agent.language || "en-US"} onChange={(e) => setAgent({ ...agent, language: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                    {languages.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                 </div>
               </div>
