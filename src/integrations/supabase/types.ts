@@ -127,6 +127,33 @@ export type Database = {
           },
         ]
       }
+      dev_settings: {
+        Row: {
+          created_at: string
+          dev_mode_enabled: boolean
+          id: string
+          updated_at: string
+          user_id: string
+          voice_platform: string
+        }
+        Insert: {
+          created_at?: string
+          dev_mode_enabled?: boolean
+          id?: string
+          updated_at?: string
+          user_id: string
+          voice_platform?: string
+        }
+        Update: {
+          created_at?: string
+          dev_mode_enabled?: boolean
+          id?: string
+          updated_at?: string
+          user_id?: string
+          voice_platform?: string
+        }
+        Relationships: []
+      }
       feedback_agents: {
         Row: {
           active: boolean
@@ -295,6 +322,39 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      prompt_blocks: {
+        Row: {
+          content: string
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
