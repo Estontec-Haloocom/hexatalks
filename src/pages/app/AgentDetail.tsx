@@ -13,8 +13,10 @@ import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { INDUSTRIES } from "@/lib/industries";
 import { useVapiConfig } from "@/hooks/use-vapi-config";
-import Vapi from "@vapi-ai/web";
 import { cn } from "@/lib/utils";
+import { startWebCall, type CallController } from "@/lib/voice-call";
+import { useDevSettings } from "@/hooks/use-dev-settings";
+import { usePromptBlocks } from "@/hooks/use-prompt-blocks";
 
 type Agent = any;
 type Turn = { role: "user" | "assistant"; text: string };
@@ -59,13 +61,15 @@ const AgentDetail = () => {
   const [callStatus, setCallStatus] = useState<"idle" | "connecting" | "active" | "ended">("idle");
   const [volume, setVolume] = useState(0);
   const [transcript, setTranscript] = useState<Turn[]>([]);
-  const vapiRef = useRef<Vapi | null>(null);
+  const callRef = useRef<CallController | null>(null);
 
   const [destNumber, setDestNumber] = useState("");
   const [placing, setPlacing] = useState(false);
 
   const [calls, setCalls] = useState<any[]>([]);
   const { data: vapiConfig } = useVapiConfig();
+  const { settings: devSettings } = useDevSettings();
+  const { blocks } = usePromptBlocks();
 
   useEffect(() => {
     if (!id) return;
@@ -90,72 +94,15 @@ const AgentDetail = () => {
     setCallStatus("connecting");
     setTranscript([]);
     try {
-      // Ask for mic permission up front for a smoother first-time experience
-      try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
-      catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
-
-      const { data, error } = await supabase.functions.invoke("vapi-web-token");
-      if (error) throw error;
-      if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
-
-      const vapi = new Vapi(data.publicKey);
-      vapiRef.current = vapi;
-      vapi.on("call-start", () => setCallStatus("active"));
-      vapi.on("call-end", () => { setCallStatus("ended"); setVolume(0); });
-      vapi.on("volume-level", (v: number) => setVolume(v));
-      vapi.on("message", (m: any) => {
-        if (m.type === "transcript" && m.transcriptType === "final") {
-          setTranscript((t) => [...t, { role: m.role === "user" ? "user" : "assistant", text: m.transcript }]);
-        }
-      });
-      vapi.on("error", (e: any) => {
-        const msg = fmtErr(e);
-        console.error("Vapi error:", e);
-        toast({ title: "Call error", description: msg, variant: "destructive" });
+      const ctrl = await startWebCall(devSettings.voice_platform, agent, blocks);
+      callRef.current = ctrl;
+      ctrl.on("status", (s) => setCallStatus(s));
+      ctrl.on("volume", (v) => setVolume(v));
+      ctrl.on("transcript", (t) => setTranscript((prev) => [...prev, t]));
+      ctrl.on("error", (e) => {
+        toast({ title: "Call error", description: fmtErr(e), variant: "destructive" });
         setCallStatus("idle");
       });
-
-      const selectedVoice = (vapiConfig?.voices ?? []).find((voice) => voice.id === agent.voice_id);
-      // Only map our short fallback names → real ElevenLabs IDs. Real provider IDs from Vapi pass through.
-      const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, agent.voice_id);
-      const voiceId = isFallbackName ? VOICE_MAP[agent.voice_id] : agent.voice_id;
-      const voiceProvider = selectedVoice?.provider || agent.voice_provider || "11labs";
-      const fullLang = agent.language || "en-US";
-      const langShort = fullLang.split("-")[0].toLowerCase();
-      // Friendly language label for the LLM directive
-      const LANG_NAMES: Record<string, string> = {
-        en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
-        pt: "Portuguese", it: "Italian", ja: "Japanese", zh: "Mandarin Chinese",
-        ar: "Arabic", ru: "Russian", nl: "Dutch", pl: "Polish", tr: "Turkish",
-        ko: "Korean", id: "Indonesian", vi: "Vietnamese", th: "Thai",
-      };
-      const langName = LANG_NAMES[langShort] || fullLang;
-      const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing — do not translate word-for-word from English.`;
-      const systemPromptLocalized = (agent.system_prompt || "") + languageDirective;
-      await vapi.start({
-        name: agent.name,
-        firstMessage: agent.first_message,
-        model: {
-          provider: "openai",
-          model: agent.model || "gpt-4o-mini",
-          temperature: Number(agent.temperature ?? 0.6),
-          maxTokens: 180,
-          messages: [{ role: "system", content: systemPromptLocalized }],
-        },
-        voice: {
-          provider: voiceProvider,
-          voiceId,
-          // Lower latency streaming for ElevenLabs
-          ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
-        } as any,
-        transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
-        // Faster turn detection
-        startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
-        stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
-        backgroundDenoisingEnabled: true,
-        silenceTimeoutSeconds: 30,
-        responseDelaySeconds: 0.2,
-      } as any);
     } catch (e: any) {
       console.error("startCall failed:", e);
       toast({ title: "Could not start call", description: fmtErr(e), variant: "destructive" });
@@ -163,7 +110,7 @@ const AgentDetail = () => {
     }
   };
 
-  const endCall = () => { vapiRef.current?.stop(); };
+  const endCall = () => { callRef.current?.stop(); };
 
   const placeCall = async () => {
     if (!destNumber) return;

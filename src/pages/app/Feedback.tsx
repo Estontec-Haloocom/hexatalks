@@ -14,8 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
-import Vapi from "@vapi-ai/web";
 import { cn } from "@/lib/utils";
+import { startWebCall, type CallController } from "@/lib/voice-call";
+import { useDevSettings } from "@/hooks/use-dev-settings";
+import { usePromptBlocks } from "@/hooks/use-prompt-blocks";
 
 type Agent = {
   id: string; name: string; industry: string;
@@ -41,15 +43,6 @@ const TRIGGERS = [
 ] as const;
 
 const STEPS = ["Pick agent", "Settings mode", "Configure"];
-
-const VOICE_MAP: Record<string, string> = {
-  jennifer: "21m00Tcm4TlvDq8ikWAM",
-  ryan: "ErXwobaYiN019PkySvjV",
-  sarah: "EXAVITQu4vr4xnSDxMaL",
-  mark: "VR6AewLTigWG4xSOukaG",
-  ava: "MF3mGyEYCl7XYWbV9V6O",
-  leo: "pNInz6obpgDQGcFmaJgB",
-};
 
 const LANG_NAMES: Record<string, string> = {
   en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
@@ -89,7 +82,9 @@ const Feedback = () => {
   const [callStatus, setCallStatus] = useState<"idle" | "connecting" | "active" | "ended">("idle");
   const [volume, setVolume] = useState(0);
   const [transcript, setTranscript] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
-  const vapiRef = useRef<Vapi | null>(null);
+  const callRef = useRef<CallController | null>(null);
+  const { settings: devSettings } = useDevSettings();
+  const { blocks } = usePromptBlocks();
 
   const refresh = async () => {
     setLoading(true);
@@ -177,59 +172,22 @@ const Feedback = () => {
     setCallStatus("connecting");
     setTranscript([]);
     try {
-      try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
-      catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
-
-      const { data, error } = await supabase.functions.invoke("vapi-web-token");
-      if (error) throw error;
-      if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
-
-      const vapi = new Vapi(data.publicKey);
-      vapiRef.current = vapi;
-      vapi.on("call-start", () => setCallStatus("active"));
-      vapi.on("call-end", () => { setCallStatus("ended"); setVolume(0); });
-      vapi.on("volume-level", (v: number) => setVolume(v));
-      vapi.on("message", (m: any) => {
-        if (m.type === "transcript" && m.transcriptType === "final") {
-          setTranscript((t) => [...t, { role: m.role === "user" ? "user" : "assistant", text: m.transcript }]);
-        }
+      const firstMessage = prompt.trim().split(/[.!?]/)[0].slice(0, 140) || "Hi! Mind if I ask you a quick question about the call?";
+      const ctrl = await startWebCall(devSettings.voice_platform, {
+        ...sourceAgent,
+        name: `${sourceAgent.name} — feedback test`,
+      }, blocks, {
+        systemPromptOverride: buildFeedbackSystemPrompt(),
+        firstMessageOverride: firstMessage,
       });
-      vapi.on("error", (e: any) => {
-        console.error("Vapi error:", e);
+      callRef.current = ctrl;
+      ctrl.on("status", (s) => setCallStatus(s));
+      ctrl.on("volume", (v) => setVolume(v));
+      ctrl.on("transcript", (t) => setTranscript((prev) => [...prev, t]));
+      ctrl.on("error", (e) => {
         toast({ title: "Call error", description: fmtErr(e), variant: "destructive" });
         setCallStatus("idle");
       });
-
-      const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, sourceAgent.voice_id);
-      const voiceId = isFallbackName ? VOICE_MAP[sourceAgent.voice_id] : sourceAgent.voice_id;
-      const voiceProvider = sourceAgent.voice_provider || "11labs";
-      const fullLang = sourceAgent.language || "en-US";
-      const langShort = fullLang.split("-")[0].toLowerCase();
-
-      const firstMessage = prompt.trim().split(/[.!?]/)[0].slice(0, 140) || "Hi! Mind if I ask you a quick question about the call?";
-
-      await vapi.start({
-        name: `${sourceAgent.name} — feedback test`,
-        firstMessage,
-        model: {
-          provider: "openai",
-          model: sourceAgent.model || "gpt-4o-mini",
-          temperature: Number(sourceAgent.temperature ?? 0.6),
-          maxTokens: 180,
-          messages: [{ role: "system", content: buildFeedbackSystemPrompt() }],
-        },
-        voice: {
-          provider: voiceProvider,
-          voiceId,
-          ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
-        } as any,
-        transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
-        startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
-        stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
-        backgroundDenoisingEnabled: true,
-        silenceTimeoutSeconds: 30,
-        responseDelaySeconds: 0.2,
-      } as any);
     } catch (e: any) {
       console.error("startCall failed:", e);
       toast({ title: "Could not start call", description: fmtErr(e), variant: "destructive" });
@@ -237,9 +195,9 @@ const Feedback = () => {
     }
   };
 
-  const endCall = () => { vapiRef.current?.stop(); vapiRef.current = null; };
+  const endCall = () => { callRef.current?.stop(); callRef.current = null; };
 
-  useEffect(() => () => { vapiRef.current?.stop(); }, []);
+  useEffect(() => () => { callRef.current?.stop(); }, []);
 
   return (
     <>
