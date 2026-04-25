@@ -15,6 +15,7 @@ import AgentDetail from "./pages/app/AgentDetail.tsx";
 import PhoneNumbers from "./pages/app/PhoneNumbers.tsx";
 import Settings from "./pages/app/Settings.tsx";
 import Transcriptions from "./pages/app/Transcriptions.tsx";
+import Feedback from "./pages/app/Feedback.tsx";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/app/agents/:id" element={<ProtectedRoute><AgentDetail /></ProtectedRoute>} />
             <Route path="/app/phone-numbers" element={<ProtectedRoute><PhoneNumbers /></ProtectedRoute>} />
             <Route path="/app/transcriptions" element={<ProtectedRoute><Transcriptions /></ProtectedRoute>} />
+            <Route path="/app/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
             <Route path="/app/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
