@@ -116,15 +116,34 @@ const AgentDetail = () => {
       });
 
       const selectedVoice = (vapiConfig?.voices ?? []).find((voice) => voice.id === agent.voice_id);
-      const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
-      const voiceProvider = agent.voice_provider || selectedVoice?.provider || "11labs";
+      // Only map our short fallback names → real ElevenLabs IDs. Real provider IDs from Vapi pass through.
+      const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, agent.voice_id);
+      const voiceId = isFallbackName ? VOICE_MAP[agent.voice_id] : agent.voice_id;
+      const voiceProvider = selectedVoice?.provider || agent.voice_provider || "11labs";
+      const langShort = (agent.language || "en-US").slice(0, 2);
       await vapi.start({
         name: agent.name,
         firstMessage: agent.first_message,
-        model: { provider: "openai", model: agent.model || "gpt-4o-mini", temperature: Number(agent.temperature ?? 0.7),
-          messages: [{ role: "system", content: agent.system_prompt }] },
-        voice: { provider: voiceProvider, voiceId },
-        transcriber: { provider: "deepgram", model: "nova-2", language: (agent.language || "en-US").slice(0, 2) },
+        model: {
+          provider: "openai",
+          model: agent.model || "gpt-4o-mini",
+          temperature: Number(agent.temperature ?? 0.6),
+          maxTokens: 180,
+          messages: [{ role: "system", content: agent.system_prompt }],
+        },
+        voice: {
+          provider: voiceProvider,
+          voiceId,
+          // Lower latency streaming for ElevenLabs
+          ...(voiceProvider === "11labs" ? { model: "eleven_turbo_v2_5", optimizeStreamingLatency: 4, stability: 0.5, similarityBoost: 0.75 } : {}),
+        },
+        transcriber: { provider: "deepgram", model: "nova-2", language: langShort, smartFormat: true, endpointing: 180 },
+        // Faster turn detection
+        startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
+        stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
+        backgroundDenoisingEnabled: true,
+        silenceTimeoutSeconds: 30,
+        responseDelaySeconds: 0.2,
       });
     } catch (e: any) {
       console.error("startCall failed:", e);
