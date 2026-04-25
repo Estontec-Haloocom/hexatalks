@@ -127,6 +127,69 @@ export type Database = {
           },
         ]
       }
+      feedback_agents: {
+        Row: {
+          active: boolean
+          created_at: string
+          delay_minutes: number
+          feedback_agent_id: string | null
+          id: string
+          name: string
+          prompt: string
+          question: string
+          settings_mode: string
+          source_agent_id: string
+          trigger_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          delay_minutes?: number
+          feedback_agent_id?: string | null
+          id?: string
+          name: string
+          prompt: string
+          question: string
+          settings_mode?: string
+          source_agent_id: string
+          trigger_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          delay_minutes?: number
+          feedback_agent_id?: string | null
+          id?: string
+          name?: string
+          prompt?: string
+          question?: string
+          settings_mode?: string
+          source_agent_id?: string
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_agents_feedback_agent_id_fkey"
+            columns: ["feedback_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_agents_source_agent_id_fkey"
+            columns: ["source_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       phone_number_agents: {
         Row: {
           active: boolean
