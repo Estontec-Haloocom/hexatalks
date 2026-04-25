@@ -17,6 +17,7 @@ export type VapiLanguageOption = {
 type VapiConfigResponse = {
   voices: VapiVoiceOption[];
   languages: VapiLanguageOption[];
+  warning?: string;
 };
 
 const fallbackVoices: VapiVoiceOption[] = [
@@ -49,11 +50,15 @@ export const useVapiConfig = () => {
         body: { action: "config" },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn("Vapi config fetch failed", error);
+        return { voices: fallbackVoices, languages: fallbackLanguages, warning: "Using fallback voice options." };
+      }
 
       return {
         voices: Array.isArray(data?.voices) && data.voices.length > 0 ? data.voices : fallbackVoices,
         languages: Array.isArray(data?.languages) && data.languages.length > 0 ? data.languages : fallbackLanguages,
+        warning: typeof data?.warning === "string" ? data.warning : undefined,
       };
     },
     initialData: {
