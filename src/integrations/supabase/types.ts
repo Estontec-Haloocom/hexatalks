@@ -127,6 +127,60 @@ export type Database = {
           },
         ]
       }
+      phone_number_agents: {
+        Row: {
+          active: boolean
+          agent_id: string
+          created_at: string
+          ends_at: string | null
+          id: string
+          phone_number_id: string
+          priority: number
+          starts_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          agent_id: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          phone_number_id: string
+          priority?: number
+          starts_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          agent_id?: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          phone_number_id?: string
+          priority?: number
+          starts_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phone_number_agents_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "phone_number_agents_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "phone_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       phone_numbers: {
         Row: {
           created_at: string
