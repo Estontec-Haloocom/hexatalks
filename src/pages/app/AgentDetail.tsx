@@ -136,7 +136,7 @@ const AgentDetail = () => {
           voiceId,
           // Lower latency streaming for ElevenLabs
           ...(voiceProvider === "11labs" ? { model: "eleven_turbo_v2_5", optimizeStreamingLatency: 4, stability: 0.5, similarityBoost: 0.75 } : {}),
-        },
+        } as any,
         transcriber: { provider: "deepgram", model: "nova-2", language: langShort, smartFormat: true, endpointing: 180 },
         // Faster turn detection
         startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
@@ -144,7 +144,7 @@ const AgentDetail = () => {
         backgroundDenoisingEnabled: true,
         silenceTimeoutSeconds: 30,
         responseDelaySeconds: 0.2,
-      });
+      } as any);
     } catch (e: any) {
       console.error("startCall failed:", e);
       toast({ title: "Could not start call", description: fmtErr(e), variant: "destructive" });
