@@ -6,6 +6,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const buildBlocks = async (supabase: any) => {
+  const { data } = await supabase
+    .from("prompt_blocks")
+    .select("name,content,enabled,position")
+    .eq("enabled", true)
+    .order("position", { ascending: true });
+  return (data ?? [])
+    .filter((b: any) => b.content?.trim())
+    .map((b: any) => `## ${b.name}\n${b.content.trim()}`)
+    .join("\n\n");
+};
+
 const VOICE_MAP: Record<string, string> = {
   jennifer: "21m00Tcm4TlvDq8ikWAM",
   ryan: "ErXwobaYiN019PkySvjV",
@@ -38,6 +50,13 @@ serve(async (req) => {
       .from("agents").select("*").eq("id", agentId).single();
     if (agentErr || !agent) throw new Error("Agent not found");
 
+    // Read user dev settings
+    const { data: settings } = await supabase
+      .from("dev_settings").select("voice_platform").maybeSingle();
+    const platform = settings?.voice_platform === "ultravox" ? "ultravox" : "vapi";
+
+    const blocksText = await buildBlocks(supabase);
+
     // Find a phone number for this user
     const { data: phones } = await supabase
       .from("phone_numbers").select("*").limit(1);
@@ -59,7 +78,44 @@ serve(async (req) => {
     };
     const langName = LANG_NAMES[langShort] || fullLang;
     const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
-    const systemPromptLocalized = (agent.system_prompt || "") + languageDirective;
+    const systemPromptLocalized = [agent.system_prompt || "", blocksText, languageDirective].filter(Boolean).join("\n\n");
+
+    if (platform === "ultravox") {
+      const ULTRAVOX_KEY = Deno.env.get("ULTRAVOX_API_KEY");
+      if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
+
+      const greeting = agent.first_message ? `# Greeting\nStart by saying: "${agent.first_message}"\n\n` : "";
+      const r = await fetch("https://api.ultravox.ai/api/calls", {
+        method: "POST",
+        headers: { "X-API-Key": ULTRAVOX_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemPrompt: greeting + systemPromptLocalized,
+          model: "fixie-ai/ultravox",
+          voice: agent.voice_id,
+          languageHint: langShort,
+          temperature: Number(agent.temperature ?? 0.5),
+          firstSpeaker: "FIRST_SPEAKER_AGENT",
+          medium: { twilio: {} },
+        }),
+      });
+      const ud = await r.json();
+      if (!r.ok) throw new Error(ud?.detail || ud?.message || "Ultravox call create failed");
+
+      // For an actual outbound dial we would now hand `ud.joinUrl` to Twilio via TwiML <Stream>.
+      // Here we log the call so the UI shows it queued; full Twilio bridge can be wired later.
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("calls").insert({
+        user_id: user!.id,
+        agent_id: agentId,
+        direction: "outbound",
+        to_number: toNumber,
+        status: "queued",
+        vapi_call_id: ud.callId || ud.id,
+      });
+      return new Response(JSON.stringify({ callId: ud.callId || ud.id, joinUrl: ud.joinUrl, platform: "ultravox" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const res = await fetch("https://api.vapi.ai/call", {
       method: "POST",
