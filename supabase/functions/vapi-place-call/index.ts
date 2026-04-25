@@ -49,6 +49,18 @@ serve(async (req) => {
     const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
     const voiceProvider = agent.voice_provider || "11labs";
 
+    const fullLang = (agent.language || "en-US") as string;
+    const langShort = fullLang.split("-")[0].toLowerCase();
+    const LANG_NAMES: Record<string, string> = {
+      en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
+      pt: "Portuguese", it: "Italian", ja: "Japanese", zh: "Mandarin Chinese",
+      ar: "Arabic", ru: "Russian", nl: "Dutch", pl: "Polish", tr: "Turkish",
+      ko: "Korean", id: "Indonesian", vi: "Vietnamese", th: "Thai",
+    };
+    const langName = LANG_NAMES[langShort] || fullLang;
+    const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
+    const systemPromptLocalized = (agent.system_prompt || "") + languageDirective;
+
     const res = await fetch("https://api.vapi.ai/call", {
       method: "POST",
       headers: { Authorization: `Bearer ${VAPI_KEY}`, "Content-Type": "application/json" },
@@ -63,14 +75,14 @@ serve(async (req) => {
             model: "gpt-4o-mini",
             temperature: Number(agent.temperature ?? 0.6),
             maxTokens: 180,
-            messages: [{ role: "system", content: agent.system_prompt }],
+            messages: [{ role: "system", content: systemPromptLocalized }],
           },
           voice: {
             provider: voiceProvider,
             voiceId,
-            ...(voiceProvider === "11labs" ? { model: "eleven_turbo_v2_5", optimizeStreamingLatency: 4 } : {}),
+            ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
           },
-          transcriber: { provider: "deepgram", model: "nova-2", language: (agent.language || "en-US").slice(0, 2), smartFormat: true, endpointing: 180 },
+          transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
           startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
           stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
           responseDelaySeconds: 0.2,
