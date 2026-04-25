@@ -7,6 +7,10 @@ export type VapiVoiceOption = {
   description: string;
   provider: string;
   language?: string;
+  gender?: string;
+  accent?: string;
+  country?: string;
+  previewUrl?: string;
 };
 
 export type VapiLanguageOption = {

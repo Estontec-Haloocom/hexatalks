@@ -8,15 +8,44 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const { industry, industryName, description, starterPrompt } = await req.json();
+    const { industry, industryName, description, starterPrompt, country, accent, gender, tone, useCases, businessName, language } = await req.json();
     if (!description) {
       return new Response(JSON.stringify({ error: "description required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const system = `You design voice AI agents. Given an industry and a business description, write a production-ready system prompt, a warm opening line, and a short suggested name. Be concrete and specific to the user's business.`;
-    const user = `Industry: ${industryName} (${industry})\nStarter template:\n${starterPrompt}\n\nUser business description:\n${description}\n\nTailor the prompt to this specific business.`;
+    const system = `You design world-class production voice AI agents optimized for ultra-low latency phone conversations.
+
+Hard rules for the system_prompt you write:
+- Write in second person ("You are…").
+- Open with a 1-line identity (role + business name + region/accent if given).
+- Then a "## Personality & tone" block (3-5 bullets) reflecting the requested tone, accent, and cultural style.
+- Then a "## Conversation style" block: short sentences (≤15 words), one question at a time, no lists read aloud, use natural fillers sparingly, never say you're an AI unless asked, confirm spellings of names/emails/numbers by reading back digit-by-digit.
+- Then a "## Goals" block: numbered, specific to the use cases provided.
+- Then a "## Knowledge" block grounded in the business description (hours, services, policies — only what was given; never invent).
+- Then a "## Guardrails" block: refuse out-of-scope topics politely, escalate to human when unsure, never give legal/medical/financial advice.
+- End with a "## Response format" block: keep replies under 2 sentences unless asked, ask clarifying questions when ambiguous.
+
+The first_message must be ≤18 words, warm, mention the business by name, and end with an open question.
+The suggested_name must be 2-3 words, brandable.`;
+
+    const user = `Industry: ${industryName} (${industry})
+Business name: ${businessName || "(not provided)"}
+Country / market: ${country || "(not provided)"}
+Preferred accent / dialect: ${accent || "(not provided)"}
+Voice gender: ${gender || "(not provided)"}
+Tone: ${tone || "professional, warm"}
+Primary language: ${language || "en-US"}
+Top use cases: ${(Array.isArray(useCases) ? useCases.join(", ") : useCases) || "(infer from description)"}
+
+Starter template (rewrite, don't copy):
+${starterPrompt}
+
+Business description:
+${description}
+
+Tailor everything to this specific business, region, and accent. Use locale-appropriate phrasing (e.g. "mate" for AU, "y'all" only if US South, etc.).`;
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

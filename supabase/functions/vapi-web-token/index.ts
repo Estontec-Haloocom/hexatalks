@@ -84,6 +84,10 @@ serve(async (req) => {
                 .join(" · ") || "Natural voice",
               provider: voice.provider || "11labs",
               language: textFrom(voice.languageCode, voice.language),
+              gender: textFrom(voice.gender),
+              accent: textFrom(voice.accent, voice.languageName),
+              country: textFrom(voice.country, voice.region),
+              previewUrl: textFrom(voice.previewUrl, voice.previewURL, voice.sampleUrl),
             }))
             .filter((voice: any) => Boolean(voice.id))
         : fallbackVoices;

@@ -61,10 +61,20 @@ serve(async (req) => {
           model: {
             provider: "openai",
             model: "gpt-4o-mini",
-            temperature: Number(agent.temperature ?? 0.7),
+            temperature: Number(agent.temperature ?? 0.6),
+            maxTokens: 180,
             messages: [{ role: "system", content: agent.system_prompt }],
           },
-          voice: { provider: voiceProvider, voiceId },
+          voice: {
+            provider: voiceProvider,
+            voiceId,
+            ...(voiceProvider === "11labs" ? { model: "eleven_turbo_v2_5", optimizeStreamingLatency: 4 } : {}),
+          },
+          transcriber: { provider: "deepgram", model: "nova-2", language: (agent.language || "en-US").slice(0, 2), smartFormat: true, endpointing: 180 },
+          startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
+          stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
+          responseDelaySeconds: 0.2,
+          silenceTimeoutSeconds: 30,
         },
       }),
     });
