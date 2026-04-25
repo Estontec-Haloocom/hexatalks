@@ -120,7 +120,18 @@ const AgentDetail = () => {
       const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, agent.voice_id);
       const voiceId = isFallbackName ? VOICE_MAP[agent.voice_id] : agent.voice_id;
       const voiceProvider = selectedVoice?.provider || agent.voice_provider || "11labs";
-      const langShort = (agent.language || "en-US").slice(0, 2);
+      const fullLang = agent.language || "en-US";
+      const langShort = fullLang.split("-")[0].toLowerCase();
+      // Friendly language label for the LLM directive
+      const LANG_NAMES: Record<string, string> = {
+        en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
+        pt: "Portuguese", it: "Italian", ja: "Japanese", zh: "Mandarin Chinese",
+        ar: "Arabic", ru: "Russian", nl: "Dutch", pl: "Polish", tr: "Turkish",
+        ko: "Korean", id: "Indonesian", vi: "Vietnamese", th: "Thai",
+      };
+      const langName = LANG_NAMES[langShort] || fullLang;
+      const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing — do not translate word-for-word from English.`;
+      const systemPromptLocalized = (agent.system_prompt || "") + languageDirective;
       await vapi.start({
         name: agent.name,
         firstMessage: agent.first_message,
@@ -129,15 +140,15 @@ const AgentDetail = () => {
           model: agent.model || "gpt-4o-mini",
           temperature: Number(agent.temperature ?? 0.6),
           maxTokens: 180,
-          messages: [{ role: "system", content: agent.system_prompt }],
+          messages: [{ role: "system", content: systemPromptLocalized }],
         },
         voice: {
           provider: voiceProvider,
           voiceId,
           // Lower latency streaming for ElevenLabs
-          ...(voiceProvider === "11labs" ? { model: "eleven_turbo_v2_5", optimizeStreamingLatency: 4, stability: 0.5, similarityBoost: 0.75 } : {}),
+          ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
         } as any,
-        transcriber: { provider: "deepgram", model: "nova-2", language: langShort, smartFormat: true, endpointing: 180 },
+        transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
         // Faster turn detection
         startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
         stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
