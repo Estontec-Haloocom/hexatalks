@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio } from "lucide-react";
+import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio, MessageSquareHeart } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ const nav = [
   { to: "/app/agents", label: "Agents", icon: Bot },
   { to: "/app/phone-numbers", label: "Phone numbers", icon: Phone },
   { to: "/app/transcriptions", label: "Transcriptions", icon: FileAudio },
+  { to: "/app/feedback", label: "Feedback", icon: MessageSquareHeart },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];
 
