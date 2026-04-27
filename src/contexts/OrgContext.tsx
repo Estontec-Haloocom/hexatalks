@@ -46,16 +46,29 @@ export const OrgProvider = ({ children }: { children: ReactNode }) => {
   const refresh = useCallback(async () => {
     if (!user) { setOrgs([]); setCurrentOrgId(null); setLoading(false); return; }
     setLoading(true);
-    const [{ data: members }, { data: profile }] = await Promise.all([
-      supabase
-        .from("organization_members")
-        .select("role, organization:organizations(id,name,company_email,company_phone,owner_id,is_personal)")
-        .eq("user_id", user.id),
-      supabase.from("profiles").select("current_org_id").eq("id", user.id).maybeSingle(),
-    ]);
-    const list: MemberOrg[] = (members ?? [])
-      .map((m: any) => m.organization ? { ...(m.organization as Organization), role: m.role as OrgRole } : null)
-      .filter(Boolean) as MemberOrg[];
+    const loadMembershipData = async () => {
+      const [{ data: members }, { data: profile }] = await Promise.all([
+        supabase
+          .from("organization_members")
+          .select("role, organization:organizations(id,name,company_email,company_phone,owner_id,is_personal)")
+          .eq("user_id", user.id),
+        supabase.from("profiles").select("current_org_id").eq("id", user.id).maybeSingle(),
+      ]);
+      const list: MemberOrg[] = (members ?? [])
+        .map((m: any) => m.organization ? { ...(m.organization as Organization), role: m.role as OrgRole } : null)
+        .filter(Boolean) as MemberOrg[];
+      return { list, profile };
+    };
+
+    let { list, profile } = await loadMembershipData();
+    if (list.length === 0) {
+      // Self-heal org context for older/misaligned users and backfill legacy org_id rows.
+      await supabase.rpc("ensure_user_org_context");
+      const healed = await loadMembershipData();
+      list = healed.list;
+      profile = healed.profile;
+    }
+
     list.sort((a, b) => Number(b.is_personal) - Number(a.is_personal) || a.name.localeCompare(b.name));
     setOrgs(list);
     let active = profile?.current_org_id ?? null;
