@@ -1,8 +1,11 @@
 import { ReactNode, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio, MessageSquareHeart } from "lucide-react";
+import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio, MessageSquareHeart, Building2, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrg } from "@/contexts/OrgContext";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/hexatalks-logo.webp";
 
@@ -12,11 +15,13 @@ const nav = [
   { to: "/app/phone-numbers", label: "Phone numbers", icon: Phone },
   { to: "/app/transcriptions", label: "Transcriptions", icon: FileAudio },
   { to: "/app/feedback", label: "Feedback", icon: MessageSquareHeart },
+  { to: "/app/organisation", label: "Organisation", icon: Building2 },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];
 
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const { user, signOut } = useAuth();
+  const { orgs, currentOrg, switchOrg } = useOrg();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -28,6 +33,39 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
           <X className="h-5 w-5 text-muted-foreground" />
         </button>
       </Link>
+      {/* Org switcher */}
+      <div className="px-3 pt-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 text-left transition-colors hover:bg-secondary/60">
+              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
+                <Building2 className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-semibold">{currentOrg?.name ?? "No organisation"}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{currentOrg?.role ?? "—"}</div>
+              </div>
+              <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-60" align="start">
+            <DropdownMenuLabel>Switch organisation</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {orgs.map((o) => (
+              <DropdownMenuItem key={o.id} onClick={() => switchOrg(o.id)} className="flex items-center gap-2">
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="flex-1 truncate">{o.name}</span>
+                {o.is_personal && <Badge variant="outline" className="text-[10px]">Personal</Badge>}
+                {o.id === currentOrg?.id && <Check className="h-3.5 w-3.5 text-accent" />}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { navigate("/app/organisation"); setOpen(false); }}>
+              <Plus className="h-3.5 w-3.5" /> Create or manage organisations
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <div className="px-3 pt-4">
         <Button onClick={() => { navigate("/app/agents/new"); setOpen(false); }} className="w-full" size="sm">
           <Plus className="h-4 w-4" /> New agent
