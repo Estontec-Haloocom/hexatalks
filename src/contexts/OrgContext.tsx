@@ -46,32 +46,45 @@ export const OrgProvider = ({ children }: { children: ReactNode }) => {
   const refresh = useCallback(async () => {
     if (!user) { setOrgs([]); setCurrentOrgId(null); setLoading(false); return; }
     setLoading(true);
+    // Always run a context heal pass first so legacy users/migrations are repaired.
+    await supabase.rpc("ensure_user_org_context");
+
     const loadMembershipData = async () => {
-      const [{ data: members }, { data: profile }] = await Promise.all([
+      const [{ data: members }, { data: profile }, { data: latestAgent }] = await Promise.all([
         supabase
           .from("organization_members")
           .select("role, organization:organizations(id,name,company_email,company_phone,owner_id,is_personal)")
           .eq("user_id", user.id),
         supabase.from("profiles").select("current_org_id").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("agents")
+          .select("org_id,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       const list: MemberOrg[] = (members ?? [])
         .map((m: any) => m.organization ? { ...(m.organization as Organization), role: m.role as OrgRole } : null)
         .filter(Boolean) as MemberOrg[];
-      return { list, profile };
+      return { list, profile, latestAgentOrgId: (latestAgent as any)?.org_id ?? null };
     };
 
-    let { list, profile } = await loadMembershipData();
+    let { list, profile, latestAgentOrgId } = await loadMembershipData();
     if (list.length === 0) {
-      // Self-heal org context for older/misaligned users and backfill legacy org_id rows.
       await supabase.rpc("ensure_user_org_context");
       const healed = await loadMembershipData();
       list = healed.list;
       profile = healed.profile;
+      latestAgentOrgId = healed.latestAgentOrgId;
     }
 
     list.sort((a, b) => Number(b.is_personal) - Number(a.is_personal) || a.name.localeCompare(b.name));
     setOrgs(list);
     let active = profile?.current_org_id ?? null;
+    if ((!active || !list.find((o) => o.id === active)) && latestAgentOrgId && list.find((o) => o.id === latestAgentOrgId)) {
+      active = latestAgentOrgId;
+    }
     if (!active || !list.find((o) => o.id === active)) active = list[0]?.id ?? null;
     setCurrentOrgId(active);
     if (active && active !== profile?.current_org_id) {
