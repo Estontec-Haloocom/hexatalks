@@ -7,6 +7,7 @@ import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Auth from "./pages/Auth.tsx";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { OrgProvider } from "@/contexts/OrgContext";
 import { ProtectedRoute } from "@/components/app/AppLayout";
 import Overview from "./pages/app/Overview.tsx";
 import Agents from "./pages/app/Agents.tsx";
@@ -16,6 +17,7 @@ import PhoneNumbers from "./pages/app/PhoneNumbers.tsx";
 import Settings from "./pages/app/Settings.tsx";
 import Transcriptions from "./pages/app/Transcriptions.tsx";
 import Feedback from "./pages/app/Feedback.tsx";
+import Organisation from "./pages/app/Organisation.tsx";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +28,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <OrgProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -36,10 +39,12 @@ const App = () => (
             <Route path="/app/phone-numbers" element={<ProtectedRoute><PhoneNumbers /></ProtectedRoute>} />
             <Route path="/app/transcriptions" element={<ProtectedRoute><Transcriptions /></ProtectedRoute>} />
             <Route path="/app/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
+            <Route path="/app/organisation" element={<ProtectedRoute><Organisation /></ProtectedRoute>} />
             <Route path="/app/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </OrgProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
