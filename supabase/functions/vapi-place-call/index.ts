@@ -113,6 +113,10 @@ serve(async (req) => {
     if (platform === "ultravox") {
       const ULTRAVOX_KEY = Deno.env.get("ULTRAVOX_API_KEY");
       if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
+      const tSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+      const tTok = Deno.env.get("TWILIO_AUTH_TOKEN");
+      const tFrom = phone?.e164 || Deno.env.get("TWILIO_PHONE_NUMBER");
+      if (!tSid || !tTok || !tFrom) throw new Error("Twilio credentials required for Ultravox phone bridging");
 
       const greeting = agent.first_message ? `# Greeting\nStart by saying: "${agent.first_message}"\n\n` : "";
       const r = await fetch("https://api.ultravox.ai/api/calls", {
@@ -130,19 +134,33 @@ serve(async (req) => {
       });
       const ud = await r.json();
       if (!r.ok) throw new Error(ud?.detail || ud?.message || "Ultravox call create failed");
+      if (!ud.joinUrl) throw new Error("Ultravox did not return a joinUrl");
 
-      // For an actual outbound dial we would now hand `ud.joinUrl` to Twilio via TwiML <Stream>.
-      // Here we log the call so the UI shows it queued; full Twilio bridge can be wired later.
+      // Bridge Twilio outbound call to Ultravox via Media Streams
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
+      const tBody = new URLSearchParams({ To: toNumber, From: tFrom, Twiml: twiml });
+      const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
+        method: "POST",
+        headers: {
+          Authorization: "Basic " + btoa(`${tSid}:${tTok}`),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: tBody,
+      });
+      const td = await tr.json();
+      if (!tr.ok) throw new Error(td?.message || "Twilio dial failed");
+
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("calls").insert({
         user_id: user!.id,
         agent_id: agentId,
         direction: "outbound",
         to_number: toNumber,
+        from_number: tFrom,
         status: "queued",
-        vapi_call_id: ud.callId || ud.id,
+        vapi_call_id: td.sid,
       });
-      return new Response(JSON.stringify({ callId: ud.callId || ud.id, joinUrl: ud.joinUrl, platform: "ultravox" }), {
+      return new Response(JSON.stringify({ callId: td.sid, ultravoxCallId: ud.callId || ud.id, platform: "ultravox+twilio" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
