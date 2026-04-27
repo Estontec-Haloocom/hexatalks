@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { startWebCall, type CallController } from "@/lib/voice-call";
 import { useDevSettings } from "@/hooks/use-dev-settings";
 import { usePromptBlocks } from "@/hooks/use-prompt-blocks";
+import { useOrg } from "@/contexts/OrgContext";
 
 type Agent = {
   id: string; name: string; industry: string;
@@ -59,6 +60,7 @@ const fmtErr = (e: any): string => {
 
 const Feedback = () => {
   const { user } = useAuth();
+  const { currentOrgId } = useOrg();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -87,17 +89,18 @@ const Feedback = () => {
   const { blocks } = usePromptBlocks();
 
   const refresh = async () => {
+    if (!currentOrgId) { setAgents([]); setItems([]); setLoading(false); return; }
     setLoading(true);
     const [a, f] = await Promise.all([
-      supabase.from("agents").select("*").order("created_at", { ascending: false }),
-      supabase.from("feedback_agents").select("*").order("created_at", { ascending: false }),
+      supabase.from("agents").select("*").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
+      supabase.from("feedback_agents").select("*").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
     ]);
     setAgents((a.data as Agent[]) ?? []);
     setItems((f.data as FeedbackRow[]) ?? []);
     setLoading(false);
   };
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [currentOrgId]);
 
   const sourceAgent = useMemo(() => agents.find((a) => a.id === sourceId), [agents, sourceId]);
 
@@ -136,7 +139,7 @@ const Feedback = () => {
     };
     const { error } = editingId
       ? await supabase.from("feedback_agents").update(payload).eq("id", editingId)
-      : await supabase.from("feedback_agents").insert({ ...payload, user_id: user.id });
+      : await supabase.from("feedback_agents").insert({ ...payload, user_id: user.id, org_id: currentOrgId! });
     setSaving(false);
     if (error) { toast({ title: "Could not save", description: error.message, variant: "destructive" }); return; }
     toast({ title: editingId ? "Feedback agent updated" : "Feedback agent created" });

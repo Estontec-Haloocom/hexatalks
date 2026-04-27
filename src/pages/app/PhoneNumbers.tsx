@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useOrg } from "@/contexts/OrgContext";
 import { cn } from "@/lib/utils";
 
 type PhoneNumber = { id: string; e164: string; label: string | null; vapi_number_id: string | null; twilio_sid: string | null };
@@ -29,6 +30,7 @@ const toIso = (local: string) => (local ? new Date(local).toISOString() : null);
 
 const PhoneNumbers = () => {
   const { toast } = useToast();
+  const { currentOrgId } = useOrg();
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -50,11 +52,12 @@ const PhoneNumbers = () => {
   const [savingLink, setSavingLink] = useState(false);
 
   const load = async () => {
+    if (!currentOrgId) { setNumbers([]); setAgents([]); setAssignments([]); setLoading(false); return; }
     setLoading(true);
     const [{ data: n }, { data: a }, { data: pna }] = await Promise.all([
-      supabase.from("phone_numbers").select("*").order("created_at", { ascending: false }),
-      supabase.from("agents").select("id, name, industry").order("created_at", { ascending: false }),
-      supabase.from("phone_number_agents").select("*"),
+      supabase.from("phone_numbers").select("*").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
+      supabase.from("agents").select("id, name, industry").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
+      supabase.from("phone_number_agents").select("*").eq("org_id", currentOrgId),
     ]);
     setNumbers((n as PhoneNumber[]) ?? []);
     setAgents((a as Agent[]) ?? []);
@@ -62,7 +65,7 @@ const PhoneNumbers = () => {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [currentOrgId]);
 
   const addNumber = async () => {
     if (!newE164.match(/^\+\d{6,15}$/)) {
@@ -71,9 +74,9 @@ const PhoneNumbers = () => {
     }
     setAdding(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setAdding(false); return; }
+    if (!user || !currentOrgId) { setAdding(false); return; }
     const { error } = await supabase.from("phone_numbers").insert({
-      user_id: user.id, e164: newE164, label: newLabel || null, twilio_sid: newSid || null,
+      user_id: user.id, org_id: currentOrgId, e164: newE164, label: newLabel || null, twilio_sid: newSid || null,
     });
     setAdding(false);
     if (error) { toast({ title: "Could not add number", description: error.message, variant: "destructive" }); return; }
@@ -99,11 +102,11 @@ const PhoneNumbers = () => {
         return;
       }
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || !currentOrgId) return;
       const existing = new Set(numbers.map((n) => n.e164));
       const rows = list
         .filter((n) => !existing.has(n.e164))
-        .map((n) => ({ user_id: user.id, e164: n.e164, label: n.label || null, twilio_sid: n.sid }));
+        .map((n) => ({ user_id: user.id, org_id: currentOrgId, e164: n.e164, label: n.label || null, twilio_sid: n.sid }));
       if (rows.length === 0) {
         toast({ title: "All Twilio numbers already imported" });
         return;
@@ -141,9 +144,10 @@ const PhoneNumbers = () => {
     if (!openAgent || !pendingNumberId) return;
     setSavingLink(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSavingLink(false); return; }
+    if (!user || !currentOrgId) { setSavingLink(false); return; }
     const { error } = await supabase.from("phone_number_agents").insert({
       user_id: user.id,
+      org_id: currentOrgId,
       agent_id: openAgent.id,
       phone_number_id: pendingNumberId,
       starts_at: toIso(pendingStart),
