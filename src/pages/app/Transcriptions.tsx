@@ -68,13 +68,15 @@ const Transcriptions = () => {
   const [selected, setSelected] = useState<Call | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "positive" | "neutral" | "negative">("all");
+  // Pulled in below
 
   useEffect(() => {
     (async () => {
       setLoading(true);
+      if (!currentOrgId) { setCalls([]); setAgents({}); setLoading(false); return; }
       const [{ data: callsData }, { data: agentsData }] = await Promise.all([
-        supabase.from("calls").select("*").order("created_at", { ascending: false }),
-        supabase.from("agents").select("id, name"),
+        supabase.from("calls").select("*").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
+        supabase.from("agents").select("id, name").eq("org_id", currentOrgId),
       ]);
       setCalls((callsData as Call[]) ?? []);
       const map: Record<string, string> = {};
@@ -83,7 +85,7 @@ const Transcriptions = () => {
       if (callsData && callsData.length) setSelected(callsData[0] as Call);
       setLoading(false);
     })();
-  }, []);
+  }, [currentOrgId]);
 
   const enriched = useMemo(() => {
     return calls.map((c) => {
