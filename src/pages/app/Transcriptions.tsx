@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Download, Search, Smile, Frown, Meh, PlayCircle, Phone, Clock, TrendingUp, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
+import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -68,7 +69,7 @@ const Transcriptions = () => {
   const [selected, setSelected] = useState<Call | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "positive" | "neutral" | "negative">("all");
-  // Pulled in below
+  const { currentOrgId } = useOrg();
 
   useEffect(() => {
     (async () => {

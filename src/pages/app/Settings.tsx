@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Trash2, Wrench } from "lucide-react";
+import { Building2, Loader2, Plus, Trash2, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/app/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrg } from "@/contexts/OrgContext";
 import { useDevSettings, type VoicePlatform } from "@/hooks/use-dev-settings";
 import { usePromptBlocks, type PromptBlock } from "@/hooks/use-prompt-blocks";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 const PLATFORMS: { id: VoicePlatform; label: string; description: string }[] = [
   { id: "vapi", label: "Vapi", description: "Default. Web + outbound calling powered by Vapi." },
@@ -22,6 +25,8 @@ const PLATFORMS: { id: VoicePlatform; label: string; description: string }[] = [
 
 const Settings = () => {
   const { user } = useAuth();
+  const { currentOrgId, hasNonPersonalOrg, refresh: refreshOrgs, switchOrg } = useOrg();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { settings, update } = useDevSettings();
   const { blocks, refresh: refreshBlocks, loading: blocksLoading } = usePromptBlocks();
@@ -31,6 +36,43 @@ const Settings = () => {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newContent, setNewContent] = useState("");
+
+  // Shift to Organization CTA
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftName, setShiftName] = useState("");
+  const [shiftEmail, setShiftEmail] = useState(user?.email ?? "");
+  const [shiftPhone, setShiftPhone] = useState("");
+  const [shifting, setShifting] = useState(false);
+
+  const createOrgFromSettings = async () => {
+    if (!user || !shiftName.trim()) return;
+    setShifting(true);
+    const { data, error } = await supabase
+      .from("organizations")
+      .insert({
+        name: shiftName.trim(),
+        company_email: shiftEmail.trim() || null,
+        company_phone: shiftPhone.trim() || null,
+        owner_id: user.id,
+        is_personal: false,
+      })
+      .select("id").single();
+    if (error || !data) {
+      setShifting(false);
+      toast({ title: "Could not create organisation", description: error?.message, variant: "destructive" });
+      return;
+    }
+    const { error: mErr } = await supabase.from("organization_members").insert({
+      organization_id: data.id, user_id: user.id, role: "owner",
+    });
+    setShifting(false);
+    if (mErr) { toast({ title: "Created, but couldn't add owner", description: mErr.message, variant: "destructive" }); return; }
+    toast({ title: "Organisation created", description: "You're now switched to your new organisation." });
+    await refreshOrgs();
+    await switchOrg(data.id);
+    setShiftOpen(false); setShiftName(""); setShiftPhone("");
+    navigate("/app/organisation");
+  };
 
   useEffect(() => {
     const map: Record<string, PromptBlock> = {};
@@ -67,9 +109,10 @@ const Settings = () => {
   };
 
   const addBlock = async () => {
-    if (!user || !newName.trim() || !newContent.trim()) return;
+    if (!user || !currentOrgId || !newName.trim() || !newContent.trim()) return;
     const { error } = await supabase.from("prompt_blocks").insert({
       user_id: user.id,
+      org_id: currentOrgId,
       name: newName.trim(),
       content: newContent.trim(),
       enabled: true,
