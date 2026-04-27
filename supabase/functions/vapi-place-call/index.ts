@@ -30,6 +30,19 @@ const VOICE_MAP: Record<string, string> = {
 // Single fixed Twilio caller ID for ALL outbound calls.
 const DEFAULT_FROM = "+14234608558";
 
+const normalizeE164 = (value: unknown) => {
+  const raw = String(value ?? "").trim().replace(/[\s\-().]/g, "");
+  const normalized = raw.startsWith("+") ? raw : `+${raw.replace(/^\+?/, "")}`;
+  return /^\+\d{8,15}$/.test(normalized) ? normalized : null;
+};
+
+const isRestrictedNumber = (value: string) => /^\+1(900|976|809|411|700|500)/.test(value);
+
+const readJson = async (res: Response) => {
+  const text = await res.text();
+  try { return text ? JSON.parse(text) : {}; } catch { return { message: text }; }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -47,7 +60,9 @@ serve(async (req) => {
     );
 
     const { agentId, toNumber } = await req.json();
-    if (!agentId || !toNumber) throw new Error("agentId and toNumber required");
+    const cleanToNumber = normalizeE164(toNumber);
+    if (!agentId || !cleanToNumber) throw new Error("Enter a valid destination number with country code, for example +919876543210.");
+    if (isRestrictedNumber(cleanToNumber)) throw new Error("Premium or special-service numbers are blocked. Use a regular mobile or landline number.");
 
     const { data: agent, error: agentErr } = await supabase
       .from("agents").select("*").eq("id", agentId).single();
@@ -85,26 +100,38 @@ serve(async (req) => {
       if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
 
       const greeting = agent.first_message ? `# Greeting\nStart by saying: "${agent.first_message}"\n\n` : "";
+      const ultravoxPayload: Record<string, unknown> = {
+        systemPrompt: greeting + systemPromptLocalized,
+        model: "fixie-ai/ultravox",
+        voice: agent.voice_id,
+        languageHint: langShort,
+        temperature: Number(agent.temperature ?? 0.5),
+        firstSpeaker: "FIRST_SPEAKER_AGENT",
+        medium: { twilio: {} },
+      };
       const r = await fetch("https://api.ultravox.ai/api/calls", {
         method: "POST",
         headers: { "X-API-Key": ULTRAVOX_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemPrompt: greeting + systemPromptLocalized,
-          model: "fixie-ai/ultravox",
-          voice: agent.voice_id,
-          languageHint: langShort,
-          temperature: Number(agent.temperature ?? 0.5),
-          firstSpeaker: "FIRST_SPEAKER_AGENT",
-          medium: { twilio: {} },
-        }),
+        body: JSON.stringify(ultravoxPayload),
       });
-      const ud = await r.json();
-      if (!r.ok) throw new Error(ud?.detail || ud?.message || "Ultravox call create failed");
+      let ud = await readJson(r);
+      if (!r.ok && agent.voice_id && JSON.stringify(ud).toLowerCase().includes("voice")) {
+        delete ultravoxPayload.voice;
+        const retry = await fetch("https://api.ultravox.ai/api/calls", {
+          method: "POST",
+          headers: { "X-API-Key": ULTRAVOX_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify(ultravoxPayload),
+        });
+        ud = await readJson(retry);
+        if (!retry.ok) throw new Error(ud?.detail || ud?.message || ud?.error || "Ultravox call create failed");
+      } else if (!r.ok) {
+        throw new Error(ud?.detail || ud?.message || ud?.error || "Ultravox call create failed");
+      }
       if (!ud.joinUrl) throw new Error("Ultravox did not return a joinUrl");
 
       // Bridge Twilio outbound call to Ultravox via Media Streams
       const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
-      const tBody = new URLSearchParams({ To: toNumber, From: tFrom, Twiml: twiml });
+      const tBody = new URLSearchParams({ To: cleanToNumber, From: tFrom, Twiml: twiml });
       const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
         method: "POST",
         headers: {
@@ -121,7 +148,7 @@ serve(async (req) => {
         user_id: user!.id,
         agent_id: agentId,
         direction: "outbound",
-        to_number: toNumber,
+          to_number: cleanToNumber,
         from_number: tFrom,
         status: "queued",
         vapi_call_id: td.sid,
@@ -138,7 +165,7 @@ serve(async (req) => {
       headers: { Authorization: `Bearer ${VAPI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         transport: { provider: "vapi.websocket" },
-        customer: { number: toNumber },
+        customer: { number: cleanToNumber },
         assistant: {
           name: agent.name,
           firstMessage: agent.first_message,
@@ -169,7 +196,7 @@ serve(async (req) => {
 
     // Dial customer via Twilio from the fixed default caller ID and bridge to Vapi.
     const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${streamUrl}"/></Connect></Response>`;
-    const tBody = new URLSearchParams({ To: toNumber, From: tFrom, Twiml: twiml });
+    const tBody = new URLSearchParams({ To: cleanToNumber, From: tFrom, Twiml: twiml });
     const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
       method: "POST",
       headers: { Authorization: "Basic " + btoa(`${tSid}:${tTok}`), "Content-Type": "application/x-www-form-urlencoded" },
@@ -183,7 +210,7 @@ serve(async (req) => {
       user_id: user!.id,
       agent_id: agentId,
       direction: "outbound",
-      to_number: toNumber,
+      to_number: cleanToNumber,
       from_number: tFrom,
       status: "queued",
       vapi_call_id: td.sid,
