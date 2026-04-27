@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { INDUSTRIES } from "@/lib/industries";
-import { useVapiConfig } from "@/hooks/use-vapi-config";
+import { useVoiceCatalog } from "@/hooks/use-voice-catalog";
 import { cn } from "@/lib/utils";
 import { startWebCall, type CallController } from "@/lib/voice-call";
 import { useDevSettings } from "@/hooks/use-dev-settings";
@@ -67,7 +67,7 @@ const AgentDetail = () => {
   const [placing, setPlacing] = useState(false);
 
   const [calls, setCalls] = useState<any[]>([]);
-  const { data: vapiConfig } = useVapiConfig();
+  const { data: catalog } = useVoiceCatalog();
   const { settings: devSettings } = useDevSettings();
   const { blocks } = usePromptBlocks();
 
@@ -80,7 +80,7 @@ const AgentDetail = () => {
   const save = async () => {
     if (!agent) return;
     setSaving(true);
-    const selectedVoice = (vapiConfig?.voices ?? []).find((voice) => voice.id === agent.voice_id);
+    const selectedVoice = (catalog?.voices ?? []).find((voice) => voice.id === agent.voice_id);
     const { error } = await supabase.from("agents").update({
       name: agent.name, system_prompt: agent.system_prompt, first_message: agent.first_message,
       voice_id: agent.voice_id, voice_provider: selectedVoice?.provider ?? agent.voice_provider ?? "11labs", language: agent.language,
@@ -133,8 +133,8 @@ const AgentDetail = () => {
   if (!agent) return <div className="grid h-[60vh] place-items-center text-muted-foreground">Loading…</div>;
 
   const ind = INDUSTRIES.find((i) => i.id === agent.industry);
-  const voices = vapiConfig?.voices ?? [];
-  const languages = vapiConfig?.languages ?? [];
+  const voices = catalog?.voices ?? [];
+  const languages = catalog?.languages ?? [];
 
   return (
     <>
@@ -208,7 +208,11 @@ const AgentDetail = () => {
                   <Label>Character voice</Label>
                   <select value={agent.voice_id} onChange={(e) => setAgent({ ...agent, voice_id: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {voices.map((v) => <option key={v.id} value={v.id}>{v.label} — {v.description}</option>)}
+                    {voices.map((v) => (
+                      <option key={`${v.provider}:${v.id}`} value={v.id}>
+                        [{v.provider}] {v.label} — {v.description}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">

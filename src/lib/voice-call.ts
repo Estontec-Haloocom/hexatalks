@@ -13,9 +13,9 @@ const VOICE_MAP: Record<string, string> = {
   leo: "pNInz6obpgDQGcFmaJgB",
 };
 
-// Map our friendly voice ids to known Ultravox voice names.
-// Ultravox uses display names like "Mark", "Jessica", "Tanya-English", etc.
-const ULTRAVOX_VOICE_MAP: Record<string, string> = {
+// Fallback map for legacy agents that still have Vapi-friendly voice ids
+// stored when the user switches to Ultravox.
+const ULTRAVOX_FALLBACK_MAP: Record<string, string> = {
   jennifer: "Jessica",
   sarah: "Jessica",
   ava: "Tanya-English",
@@ -64,7 +64,12 @@ export const startWebCall = async (
   const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
 
   if (platform === "ultravox") {
-    const uvVoice = ULTRAVOX_VOICE_MAP[agent.voice_id?.toLowerCase?.()] ?? ULTRAVOX_DEFAULT_VOICE;
+    // If the agent was configured with an Ultravox voice, use it directly.
+    // Otherwise (legacy Vapi name) map to a sensible Ultravox equivalent.
+    const isUltravoxVoice = agent.voice_provider === "ultravox";
+    const uvVoice = isUltravoxVoice
+      ? agent.voice_id
+      : ULTRAVOX_FALLBACK_MAP[agent.voice_id?.toLowerCase?.()] ?? ULTRAVOX_DEFAULT_VOICE;
     const { data, error } = await supabase.functions.invoke("ultravox-create-call", {
       body: {
         systemPrompt: `${firstMessage ? `# Greeting\nStart by saying: "${firstMessage}"\n\n` : ""}${systemPrompt}`,
