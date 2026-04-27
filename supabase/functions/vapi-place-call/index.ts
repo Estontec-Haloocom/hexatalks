@@ -61,8 +61,38 @@ serve(async (req) => {
     const { data: phones } = await supabase
       .from("phone_numbers").select("*").limit(1);
     const phone = phones?.[0];
+
+    // If no Vapi-registered number, fall back to Twilio direct dial
     if (!phone?.vapi_number_id) {
-      throw new Error("No phone number attached. Add one in Phone numbers.");
+      const tSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+      const tTok = Deno.env.get("TWILIO_AUTH_TOKEN");
+      const tFrom = phone?.e164 || Deno.env.get("TWILIO_PHONE_NUMBER");
+      if (!tSid || !tTok || !tFrom) {
+        throw new Error("No phone number attached. Add one in Phone numbers or configure Twilio.");
+      }
+      const greeting = (agent.first_message || `Hello, this is ${agent.name}.`).replace(/[<&>]/g, "");
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">${greeting}</Say><Pause length="1"/></Response>`;
+      const tBody = new URLSearchParams({ To: toNumber, From: tFrom, Twiml: twiml });
+      const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
+        method: "POST",
+        headers: { Authorization: "Basic " + btoa(`${tSid}:${tTok}`), "Content-Type": "application/x-www-form-urlencoded" },
+        body: tBody,
+      });
+      const td = await tr.json();
+      if (!tr.ok) throw new Error(td?.message || "Twilio call failed");
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("calls").insert({
+        user_id: user!.id,
+        agent_id: agentId,
+        direction: "outbound",
+        to_number: toNumber,
+        from_number: tFrom,
+        status: "queued",
+        vapi_call_id: td.sid,
+      });
+      return new Response(JSON.stringify({ callId: td.sid, platform: "twilio" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
