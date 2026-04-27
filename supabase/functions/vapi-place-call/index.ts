@@ -115,7 +115,8 @@ serve(async (req) => {
         body: JSON.stringify(ultravoxPayload),
       });
       let ud = await readJson(r);
-      if (!r.ok && agent.voice_id && JSON.stringify(ud).toLowerCase().includes("voice")) {
+      if (!r.ok && agent.voice_id) {
+        console.warn("Ultravox call create failed, retrying with default voice", r.status, ud);
         delete ultravoxPayload.voice;
         const retry = await fetch("https://api.ultravox.ai/api/calls", {
           method: "POST",
@@ -153,7 +154,7 @@ serve(async (req) => {
         status: "queued",
         vapi_call_id: td.sid,
       });
-      return new Response(JSON.stringify({ callId: td.sid, ultravoxCallId: ud.callId || ud.id, platform: "ultravox+twilio" }), {
+      return new Response(JSON.stringify({ ok: true, callId: td.sid, ultravoxCallId: ud.callId || ud.id, platform: "ultravox+twilio" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -216,12 +217,13 @@ serve(async (req) => {
       vapi_call_id: td.sid,
     });
 
-    return new Response(JSON.stringify({ callId: td.sid, vapiCallId: vapiData.id, platform: "vapi+twilio" }), {
+    return new Response(JSON.stringify({ ok: true, callId: td.sid, vapiCallId: vapiData.id, platform: "vapi+twilio" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 400,
+    console.error("vapi-place-call failed", e);
+    return new Response(JSON.stringify({ ok: false, error: e.message || "Could not place call" }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
