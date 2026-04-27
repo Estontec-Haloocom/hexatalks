@@ -13,6 +13,18 @@ const VOICE_MAP: Record<string, string> = {
   leo: "pNInz6obpgDQGcFmaJgB",
 };
 
+// Map our friendly voice ids to known Ultravox voice names.
+// Ultravox uses display names like "Mark", "Jessica", "Tanya-English", etc.
+const ULTRAVOX_VOICE_MAP: Record<string, string> = {
+  jennifer: "Jessica",
+  sarah: "Jessica",
+  ava: "Tanya-English",
+  ryan: "Mark",
+  mark: "Mark",
+  leo: "Mark",
+};
+const ULTRAVOX_DEFAULT_VOICE = "Mark";
+
 export type CallController = {
   stop: () => void;
   on: (
@@ -52,10 +64,11 @@ export const startWebCall = async (
   const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
 
   if (platform === "ultravox") {
+    const uvVoice = ULTRAVOX_VOICE_MAP[agent.voice_id?.toLowerCase?.()] ?? ULTRAVOX_DEFAULT_VOICE;
     const { data, error } = await supabase.functions.invoke("ultravox-create-call", {
       body: {
         systemPrompt: `${firstMessage ? `# Greeting\nStart by saying: "${firstMessage}"\n\n` : ""}${systemPrompt}`,
-        voice: agent.voice_id, // Ultravox accepts voice names like "Mark", "Tanya-English", etc.
+        voice: uvVoice,
         languageHint: (agent.language || "en-US").split("-")[0].toLowerCase(),
         temperature: Number(agent.temperature ?? 0.5),
         agentId: agent.id,
