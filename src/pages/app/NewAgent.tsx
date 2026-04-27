@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { INDUSTRIES } from "@/lib/industries";
-import { useVapiConfig, type VapiVoiceOption } from "@/hooks/use-vapi-config";
+import { useVoiceCatalog, type VoiceOption } from "@/hooks/use-voice-catalog";
 import { cn } from "@/lib/utils";
 
 const fmtErr = (value: any): string => {
@@ -67,11 +67,11 @@ const NewAgent = () => {
   const [previewing, setPreviewing] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: vapiConfig } = useVapiConfig();
+  const { data: catalog } = useVoiceCatalog();
 
   const ind = INDUSTRIES.find((i) => i.id === industry);
-  const allVoices = vapiConfig?.voices ?? [];
-  const languages = vapiConfig?.languages ?? [];
+  const allVoices = catalog?.voices ?? [];
+  const languages = catalog?.languages ?? [];
 
   const filteredVoices = useMemo(() => {
     const langPrefix = language.slice(0, 2).toLowerCase();
@@ -88,10 +88,10 @@ const NewAgent = () => {
   }, [allVoices, language, gender, accent]);
 
   const visibleVoices = filteredVoices.length ? filteredVoices : allVoices;
-  const selectedVoice: VapiVoiceOption | undefined =
+  const selectedVoice: VoiceOption | undefined =
     visibleVoices.find((v) => v.id === voiceId) ?? visibleVoices[0];
 
-  const playPreview = (v: VapiVoiceOption) => {
+  const playPreview = (v: VoiceOption) => {
     if (!v.previewUrl) return;
     setPreviewing(v.id);
     const audio = new Audio(v.previewUrl);
