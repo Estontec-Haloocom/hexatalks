@@ -114,11 +114,12 @@ const AgentDetail = () => {
 
   const placeCall = async () => {
     if (!destNumber) return;
-    // Normalize: strip spaces/dashes/parens, ensure leading +
+    // Normalize: strip formatting, convert leading 00 to +, ensure leading +
     let to = destNumber.trim().replace(/[\s\-().]/g, "");
+    if (to.startsWith("00")) to = "+" + to.slice(2);
     if (!to.startsWith("+")) to = "+" + to.replace(/^\+?/, "");
     if (!/^\+\d{8,15}$/.test(to)) {
-      toast({ title: "Invalid number", description: "Use international E.164 format, e.g. +14155551234", variant: "destructive" });
+      toast({ title: "Invalid number", description: "Enter the country code and mobile number, e.g. +919876543210", variant: "destructive" });
       return;
     }
     // Twilio rejects premium / special prefixes by default
@@ -247,17 +248,17 @@ const AgentDetail = () => {
           <TabsContent value="phone" className="mt-6">
             <Card className="p-5 sm:p-8">
               <h3 className="font-semibold">Place an outbound call</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Your agent will call this number from one of your attached phone numbers.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Your agent will call this number from +14234608558.</p>
               <div className="mt-5 flex flex-wrap items-end gap-3">
                 <div className="min-w-[240px] flex-1 space-y-1.5">
-                  <Label>Destination phone (E.164)</Label>
-                  <Input placeholder="+15551234567" value={destNumber} onChange={(e) => setDestNumber(e.target.value)} />
+                  <Label>Destination phone with country code</Label>
+                  <Input placeholder="+919876543210" value={destNumber} onChange={(e) => setDestNumber(e.target.value)} />
                 </div>
                 <Button onClick={placeCall} disabled={placing || !destNumber} className="w-full sm:w-auto">
                   {placing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Place call
                 </Button>
               </div>
-              <p className="mt-4 text-xs text-muted-foreground">Note: requires a phone number attached in <Link to="/app/phone-numbers" className="text-accent hover:underline">Phone numbers</Link>.</p>
+              <p className="mt-4 text-xs text-muted-foreground">Outbound calls use the default caller ID +14234608558.</p>
             </Card>
           </TabsContent>
 
