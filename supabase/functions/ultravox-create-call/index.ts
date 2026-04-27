@@ -64,8 +64,22 @@ serve(async (req) => {
       },
       body: JSON.stringify(payload),
     });
-    const data = await r.json();
-    if (!r.ok) {
+    let data = await r.json();
+    // If the chosen voice doesn't exist, retry once without a voice (use Ultravox default).
+    if (!r.ok && voice && JSON.stringify(data).toLowerCase().includes("voice")) {
+      console.warn("ultravox voice rejected, retrying without voice:", voice, data);
+      delete (payload as any).voice;
+      const r2 = await fetch("https://api.ultravox.ai/api/calls", {
+        method: "POST",
+        headers: { "X-API-Key": KEY, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      data = await r2.json();
+      if (!r2.ok) {
+        console.error("ultravox create call failed (retry)", r2.status, data);
+        return json({ error: data?.detail || data?.message || "Ultravox call create failed", details: data }, r2.status);
+      }
+    } else if (!r.ok) {
       console.error("ultravox create call failed", r.status, data);
       return json({ error: data?.detail || data?.message || "Ultravox call create failed", details: data }, r.status);
     }
