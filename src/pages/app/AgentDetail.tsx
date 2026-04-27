@@ -138,6 +138,7 @@ const AgentDetail = () => {
         body: { agentId: agent.id, toNumber: to },
       });
       if (error) throw error;
+      if (data && data.ok === false) throw new Error(data.error || "Could not place call");
       toast({ title: "Call queued", description: `Calling ${to}…` });
       setDestNumber("");
     } catch (e: any) {
