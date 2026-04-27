@@ -114,13 +114,30 @@ const AgentDetail = () => {
 
   const placeCall = async () => {
     if (!destNumber) return;
+    // Normalize: strip spaces/dashes/parens, ensure leading +
+    let to = destNumber.trim().replace(/[\s\-().]/g, "");
+    if (!to.startsWith("+")) to = "+" + to.replace(/^\+?/, "");
+    if (!/^\+\d{8,15}$/.test(to)) {
+      toast({ title: "Invalid number", description: "Use international E.164 format, e.g. +14155551234", variant: "destructive" });
+      return;
+    }
+    // Twilio rejects premium / special prefixes by default
+    const premium = /^\+1(900|976|809|411|700|500|976)/;
+    if (premium.test(to)) {
+      toast({
+        title: "Premium number blocked",
+        description: "Numbers starting with +1 900/976/809/411 are premium and not allowed by Twilio. Try a regular mobile or landline.",
+        variant: "destructive",
+      });
+      return;
+    }
     setPlacing(true);
     try {
       const { data, error } = await supabase.functions.invoke("vapi-place-call", {
-        body: { agentId: agent.id, toNumber: destNumber },
+        body: { agentId: agent.id, toNumber: to },
       });
       if (error) throw error;
-      toast({ title: "Call queued", description: `Calling ${destNumber}…` });
+      toast({ title: "Call queued", description: `Calling ${to}…` });
       setDestNumber("");
     } catch (e: any) {
       console.error("placeCall failed:", e);
