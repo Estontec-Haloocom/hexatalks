@@ -132,6 +132,25 @@ const Settings = () => {
           <p className="mt-1 text-sm text-muted-foreground">Signed in as {user?.email}</p>
         </Card>
 
+        {!hasNonPersonalOrg && (
+          <Card className="overflow-hidden bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground sm:p-8">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="max-w-lg">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  <h3 className="font-display text-xl tracking-tight">Shift to Organisation</h3>
+                </div>
+                <p className="mt-2 text-sm opacity-85">
+                  Move your workspace to a company organisation. Invite teammates, share agents, numbers and call data — all scoped per organisation.
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => setShiftOpen(true)}>
+                <Plus className="h-4 w-4" /> Create organisation
+              </Button>
+            </div>
+          </Card>
+        )}
+
         <Card className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -248,6 +267,34 @@ const Settings = () => {
           </p>
         </Card>
       </div>
+
+      <Dialog open={shiftOpen} onOpenChange={setShiftOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Create your organisation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label>Company name</Label>
+              <Input value={shiftName} onChange={(e) => setShiftName(e.target.value)} placeholder="Acme Co." />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Company email</Label>
+              <Input type="email" value={shiftEmail} onChange={(e) => setShiftEmail(e.target.value)} placeholder="hello@acme.com" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Company phone</Label>
+              <Input value={shiftPhone} onChange={(e) => setShiftPhone(e.target.value)} placeholder="+1 555 123 4567" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShiftOpen(false)}>Cancel</Button>
+            <Button onClick={createOrgFromSettings} disabled={shifting || !shiftName.trim()}>
+              {shifting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create & switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
