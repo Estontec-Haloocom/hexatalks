@@ -25,6 +25,7 @@ export type Database = {
           model: string
           model_provider: string
           name: string
+          org_id: string
           system_prompt: string
           temperature: number
           updated_at: string
@@ -43,6 +44,7 @@ export type Database = {
           model?: string
           model_provider?: string
           name: string
+          org_id: string
           system_prompt: string
           temperature?: number
           updated_at?: string
@@ -61,6 +63,7 @@ export type Database = {
           model?: string
           model_provider?: string
           name?: string
+          org_id?: string
           system_prompt?: string
           temperature?: number
           updated_at?: string
@@ -80,6 +83,7 @@ export type Database = {
           duration_sec: number | null
           from_number: string | null
           id: string
+          org_id: string | null
           recording_url: string | null
           status: string
           to_number: string | null
@@ -95,6 +99,7 @@ export type Database = {
           duration_sec?: number | null
           from_number?: string | null
           id?: string
+          org_id?: string | null
           recording_url?: string | null
           status?: string
           to_number?: string | null
@@ -110,6 +115,7 @@ export type Database = {
           duration_sec?: number | null
           from_number?: string | null
           id?: string
+          org_id?: string | null
           recording_url?: string | null
           status?: string
           to_number?: string | null
@@ -132,6 +138,7 @@ export type Database = {
           created_at: string
           dev_mode_enabled: boolean
           id: string
+          org_id: string | null
           updated_at: string
           user_id: string
           voice_platform: string
@@ -140,6 +147,7 @@ export type Database = {
           created_at?: string
           dev_mode_enabled?: boolean
           id?: string
+          org_id?: string | null
           updated_at?: string
           user_id: string
           voice_platform?: string
@@ -148,6 +156,7 @@ export type Database = {
           created_at?: string
           dev_mode_enabled?: boolean
           id?: string
+          org_id?: string | null
           updated_at?: string
           user_id?: string
           voice_platform?: string
@@ -162,6 +171,7 @@ export type Database = {
           feedback_agent_id: string | null
           id: string
           name: string
+          org_id: string
           prompt: string
           question: string
           settings_mode: string
@@ -177,6 +187,7 @@ export type Database = {
           feedback_agent_id?: string | null
           id?: string
           name: string
+          org_id: string
           prompt: string
           question: string
           settings_mode?: string
@@ -192,6 +203,7 @@ export type Database = {
           feedback_agent_id?: string | null
           id?: string
           name?: string
+          org_id?: string
           prompt?: string
           question?: string
           settings_mode?: string
@@ -217,6 +229,77 @@ export type Database = {
           },
         ]
       }
+      organization_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_email: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["org_role"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_email?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["org_role"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_email?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["org_role"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          company_email: string | null
+          company_phone: string | null
+          created_at: string
+          id: string
+          is_personal: boolean
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_email?: string | null
+          company_phone?: string | null
+          created_at?: string
+          id?: string
+          is_personal?: boolean
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_email?: string | null
+          company_phone?: string | null
+          created_at?: string
+          id?: string
+          is_personal?: boolean
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       phone_number_agents: {
         Row: {
           active: boolean
@@ -224,6 +307,7 @@ export type Database = {
           created_at: string
           ends_at: string | null
           id: string
+          org_id: string
           phone_number_id: string
           priority: number
           starts_at: string | null
@@ -236,6 +320,7 @@ export type Database = {
           created_at?: string
           ends_at?: string | null
           id?: string
+          org_id: string
           phone_number_id: string
           priority?: number
           starts_at?: string | null
@@ -248,6 +333,7 @@ export type Database = {
           created_at?: string
           ends_at?: string | null
           id?: string
+          org_id?: string
           phone_number_id?: string
           priority?: number
           starts_at?: string | null
@@ -277,6 +363,7 @@ export type Database = {
           e164: string
           id: string
           label: string | null
+          org_id: string
           twilio_sid: string | null
           user_id: string
           vapi_number_id: string | null
@@ -286,6 +373,7 @@ export type Database = {
           e164: string
           id?: string
           label?: string | null
+          org_id: string
           twilio_sid?: string | null
           user_id: string
           vapi_number_id?: string | null
@@ -295,6 +383,7 @@ export type Database = {
           e164?: string
           id?: string
           label?: string | null
+          org_id?: string
           twilio_sid?: string | null
           user_id?: string
           vapi_number_id?: string | null
@@ -304,6 +393,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          current_org_id: string | null
           email: string | null
           full_name: string | null
           id: string
@@ -311,6 +401,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_org_id?: string | null
           email?: string | null
           full_name?: string | null
           id: string
@@ -318,6 +409,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_org_id?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -332,6 +424,7 @@ export type Database = {
           enabled: boolean
           id: string
           name: string
+          org_id: string
           position: number
           updated_at: string
           user_id: string
@@ -342,6 +435,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           name: string
+          org_id: string
           position?: number
           updated_at?: string
           user_id: string
@@ -352,6 +446,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           name?: string
+          org_id?: string
           position?: number
           updated_at?: string
           user_id?: string
@@ -363,10 +458,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_org_role: {
+        Args: {
+          _org_id: string
+          _roles: Database["public"]["Enums"]["org_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_org_member: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      org_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -493,6 +599,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      org_role: ["owner", "admin", "member"],
+    },
   },
 } as const

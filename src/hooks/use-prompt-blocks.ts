@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrg } from "@/contexts/OrgContext";
 
 export type PromptBlock = {
   id: string;
@@ -12,23 +13,24 @@ export type PromptBlock = {
 
 export const usePromptBlocks = () => {
   const { user } = useAuth();
+  const { currentOrgId } = useOrg();
   const [blocks, setBlocks] = useState<PromptBlock[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
-    if (!user) { setBlocks([]); setLoading(false); return; }
+    if (!user || !currentOrgId) { setBlocks([]); setLoading(false); return; }
     setLoading(true);
     const { data } = await supabase
       .from("prompt_blocks")
       .select("id,name,content,enabled,position")
-      .eq("user_id", user.id)
+      .eq("org_id", currentOrgId)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true });
     setBlocks((data as PromptBlock[]) ?? []);
     setLoading(false);
   };
 
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [user?.id]);
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [user?.id, currentOrgId]);
 
   return { blocks, loading, refresh };
 };

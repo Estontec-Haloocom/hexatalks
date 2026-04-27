@@ -147,6 +147,7 @@ serve(async (req) => {
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("calls").insert({
         user_id: user!.id,
+        org_id: agent.org_id ?? null,
         agent_id: agentId,
         direction: "outbound",
           to_number: cleanToNumber,
@@ -209,6 +210,7 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("calls").insert({
       user_id: user!.id,
+      org_id: agent.org_id ?? null,
       agent_id: agentId,
       direction: "outbound",
       to_number: cleanToNumber,

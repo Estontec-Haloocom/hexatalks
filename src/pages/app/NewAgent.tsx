@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { INDUSTRIES } from "@/lib/industries";
 import { useVoiceCatalog, type VoiceOption } from "@/hooks/use-voice-catalog";
+import { useOrg } from "@/contexts/OrgContext";
 import { cn } from "@/lib/utils";
 
 const fmtErr = (value: any): string => {
@@ -68,6 +69,7 @@ const NewAgent = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: catalog } = useVoiceCatalog();
+  const { currentOrgId } = useOrg();
 
   const ind = INDUSTRIES.find((i) => i.id === industry);
   const allVoices = catalog?.voices ?? [];
@@ -146,9 +148,11 @@ const NewAgent = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not signed in");
+      if (!currentOrgId) throw new Error("No organisation selected");
       const finalVoice = selectedVoice;
       const { data, error } = await supabase.from("agents").insert({
         user_id: user.id,
+        org_id: currentOrgId,
         name: name || `${ind?.name} Agent`,
         industry,
         description,

@@ -27,7 +27,7 @@ serve(async (req) => {
     const { agentId, toNumber, fromNumber } = await req.json();
     if (!agentId || !toNumber) throw new Error("agentId and toNumber required");
 
-    const { data: agent } = await supabase.from("agents").select("name, first_message").eq("id", agentId).single();
+    const { data: agent } = await supabase.from("agents").select("name, first_message, org_id").eq("id", agentId).single();
     if (!agent) throw new Error("Agent not found");
 
     const from = fromNumber || defaultFrom;
@@ -59,6 +59,7 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("calls").insert({
       user_id: user!.id,
+      org_id: (agent as any).org_id ?? null,
       agent_id: agentId,
       direction: "outbound",
       to_number: toNumber,

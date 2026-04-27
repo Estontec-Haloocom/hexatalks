@@ -88,8 +88,10 @@ serve(async (req) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user && agentId) {
+        const { data: ag } = await supabase.from("agents").select("org_id").eq("id", agentId).maybeSingle();
         await supabase.from("calls").insert({
           user_id: user.id,
+          org_id: (ag as any)?.org_id ?? null,
           agent_id: agentId,
           direction: medium === "twilio" ? "outbound" : "outbound",
           to_number: callerNumber || twilioOutgoing?.to || null,

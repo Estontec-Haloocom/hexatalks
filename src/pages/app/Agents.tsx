@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Bot, Plus, Mic } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
+import { useOrg } from "@/contexts/OrgContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { INDUSTRIES } from "@/lib/industries";
@@ -12,13 +13,16 @@ type Agent = { id: string; name: string; industry: string; created_at: string; f
 const Agents = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const { currentOrgId } = useOrg();
 
   useEffect(() => {
-    supabase.from("agents").select("id,name,industry,created_at,first_message").order("created_at", { ascending: false }).then(({ data }) => {
+    if (!currentOrgId) { setAgents([]); setLoading(false); return; }
+    setLoading(true);
+    supabase.from("agents").select("id,name,industry,created_at,first_message").eq("org_id", currentOrgId).order("created_at", { ascending: false }).then(({ data }) => {
       setAgents((data as Agent[]) ?? []);
       setLoading(false);
     });
-  }, []);
+  }, [currentOrgId]);
 
   return (
     <>

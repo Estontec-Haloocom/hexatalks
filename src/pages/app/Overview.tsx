@@ -3,22 +3,25 @@ import { Link } from "react-router-dom";
 import { Bot, Phone, Activity, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
+import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 const Overview = () => {
   const [stats, setStats] = useState({ agents: 0, numbers: 0, calls: 0 });
+  const { currentOrgId } = useOrg();
 
   useEffect(() => {
+    if (!currentOrgId) { setStats({ agents: 0, numbers: 0, calls: 0 }); return; }
     (async () => {
       const [a, n, c] = await Promise.all([
-        supabase.from("agents").select("id", { count: "exact", head: true }),
-        supabase.from("phone_numbers").select("id", { count: "exact", head: true }),
-        supabase.from("calls").select("id", { count: "exact", head: true }),
+        supabase.from("agents").select("id", { count: "exact", head: true }).eq("org_id", currentOrgId),
+        supabase.from("phone_numbers").select("id", { count: "exact", head: true }).eq("org_id", currentOrgId),
+        supabase.from("calls").select("id", { count: "exact", head: true }).eq("org_id", currentOrgId),
       ]);
       setStats({ agents: a.count ?? 0, numbers: n.count ?? 0, calls: c.count ?? 0 });
     })();
-  }, []);
+  }, [currentOrgId]);
 
   const cards = [
     { label: "Agents", value: stats.agents, icon: Bot },
