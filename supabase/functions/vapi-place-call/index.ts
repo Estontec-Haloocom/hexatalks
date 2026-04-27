@@ -27,6 +27,9 @@ const VOICE_MAP: Record<string, string> = {
   leo: "pNInz6obpgDQGcFmaJgB",
 };
 
+// Single fixed Twilio caller ID for ALL outbound calls.
+const DEFAULT_FROM = "+14234608558";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -57,43 +60,10 @@ serve(async (req) => {
 
     const blocksText = await buildBlocks(supabase);
 
-    // Find a phone number for this user
-    const { data: phones } = await supabase
-      .from("phone_numbers").select("*").limit(1);
-    const phone = phones?.[0];
-
-    // If no Vapi-registered number, fall back to Twilio direct dial
-    if (!phone?.vapi_number_id) {
-      const tSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-      const tTok = Deno.env.get("TWILIO_AUTH_TOKEN");
-      const tFrom = phone?.e164 || Deno.env.get("TWILIO_PHONE_NUMBER");
-      if (!tSid || !tTok || !tFrom) {
-        throw new Error("No phone number attached. Add one in Phone numbers or configure Twilio.");
-      }
-      const greeting = (agent.first_message || `Hello, this is ${agent.name}.`).replace(/[<&>]/g, "");
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">${greeting}</Say><Pause length="1"/></Response>`;
-      const tBody = new URLSearchParams({ To: toNumber, From: tFrom, Twiml: twiml });
-      const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
-        method: "POST",
-        headers: { Authorization: "Basic " + btoa(`${tSid}:${tTok}`), "Content-Type": "application/x-www-form-urlencoded" },
-        body: tBody,
-      });
-      const td = await tr.json();
-      if (!tr.ok) throw new Error(td?.message || "Twilio call failed");
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from("calls").insert({
-        user_id: user!.id,
-        agent_id: agentId,
-        direction: "outbound",
-        to_number: toNumber,
-        from_number: tFrom,
-        status: "queued",
-        vapi_call_id: td.sid,
-      });
-      return new Response(JSON.stringify({ callId: td.sid, platform: "twilio" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const tSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const tTok = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const tFrom = DEFAULT_FROM;
+    if (!tSid || !tTok) throw new Error("Twilio credentials not configured");
 
     const voiceId = VOICE_MAP[agent.voice_id] ?? agent.voice_id;
     const voiceProvider = agent.voice_provider || "11labs";
@@ -113,10 +83,6 @@ serve(async (req) => {
     if (platform === "ultravox") {
       const ULTRAVOX_KEY = Deno.env.get("ULTRAVOX_API_KEY");
       if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
-      const tSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-      const tTok = Deno.env.get("TWILIO_AUTH_TOKEN");
-      const tFrom = phone?.e164 || Deno.env.get("TWILIO_PHONE_NUMBER");
-      if (!tSid || !tTok || !tFrom) throw new Error("Twilio credentials required for Ultravox phone bridging");
 
       const greeting = agent.first_message ? `# Greeting\nStart by saying: "${agent.first_message}"\n\n` : "";
       const r = await fetch("https://api.ultravox.ai/api/calls", {
@@ -165,11 +131,13 @@ serve(async (req) => {
       });
     }
 
-    const res = await fetch("https://api.vapi.ai/call", {
+    // Vapi platform: dial via Twilio (fixed caller ID) and bridge to Vapi assistant via Media Streams.
+    // First, create a transient Vapi assistant + call session that returns a stream URL.
+    const vapiCreate = await fetch("https://api.vapi.ai/call", {
       method: "POST",
       headers: { Authorization: `Bearer ${VAPI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        phoneNumberId: phone.vapi_number_id,
+        transport: { provider: "vapi.websocket" },
         customer: { number: toNumber },
         assistant: {
           name: agent.name,
@@ -194,21 +162,34 @@ serve(async (req) => {
         },
       }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.message || "Vapi call failed");
+    const vapiData = await vapiCreate.json();
+    if (!vapiCreate.ok) throw new Error(vapiData?.message || "Vapi call create failed");
+    const streamUrl = vapiData?.transport?.websocketCallUrl || vapiData?.websocketCallUrl;
+    if (!streamUrl) throw new Error("Vapi did not return a stream URL");
 
-    // Log the call
+    // Dial customer via Twilio from the fixed default caller ID and bridge to Vapi.
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${streamUrl}"/></Connect></Response>`;
+    const tBody = new URLSearchParams({ To: toNumber, From: tFrom, Twiml: twiml });
+    const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
+      method: "POST",
+      headers: { Authorization: "Basic " + btoa(`${tSid}:${tTok}`), "Content-Type": "application/x-www-form-urlencoded" },
+      body: tBody,
+    });
+    const td = await tr.json();
+    if (!tr.ok) throw new Error(td?.message || "Twilio dial failed");
+
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("calls").insert({
       user_id: user!.id,
       agent_id: agentId,
       direction: "outbound",
       to_number: toNumber,
+      from_number: tFrom,
       status: "queued",
-      vapi_call_id: data.id,
+      vapi_call_id: td.sid,
     });
 
-    return new Response(JSON.stringify({ callId: data.id }), {
+    return new Response(JSON.stringify({ callId: td.sid, vapiCallId: vapiData.id, platform: "vapi+twilio" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
