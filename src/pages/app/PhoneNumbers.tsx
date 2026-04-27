@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Phone, Plus, Bot, Trash2, Calendar as CalIcon, Link2, Link2Off, Loader2 } from "lucide-react";
+import { Phone, Plus, Bot, Trash2, Calendar as CalIcon, Link2, Link2Off, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
@@ -39,6 +39,7 @@ const PhoneNumbers = () => {
   const [newE164, setNewE164] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newSid, setNewSid] = useState("");
+  const [importing, setImporting] = useState(false);
 
   // Agent dialog state
   const [openAgent, setOpenAgent] = useState<Agent | null>(null);
@@ -85,6 +86,37 @@ const PhoneNumbers = () => {
     const { error } = await supabase.from("phone_numbers").delete().eq("id", id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
     load();
+  };
+
+  const importFromTwilio = async () => {
+    setImporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("twilio-list-numbers");
+      if (error) throw error;
+      const list = (data?.numbers ?? []) as Array<{ sid: string; e164: string; label: string }>;
+      if (list.length === 0) {
+        toast({ title: "No Twilio numbers found on your account" });
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const existing = new Set(numbers.map((n) => n.e164));
+      const rows = list
+        .filter((n) => !existing.has(n.e164))
+        .map((n) => ({ user_id: user.id, e164: n.e164, label: n.label || null, twilio_sid: n.sid }));
+      if (rows.length === 0) {
+        toast({ title: "All Twilio numbers already imported" });
+        return;
+      }
+      const { error: insErr } = await supabase.from("phone_numbers").insert(rows);
+      if (insErr) throw insErr;
+      toast({ title: `Imported ${rows.length} number${rows.length === 1 ? "" : "s"} from Twilio` });
+      load();
+    } catch (e: any) {
+      toast({ title: "Twilio import failed", description: e.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
   };
 
   const assignmentsForAgent = (agentId: string) =>
@@ -154,7 +186,12 @@ const PhoneNumbers = () => {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-display text-lg tracking-tight">Your numbers</h2>
-            <span className="text-xs text-muted-foreground">{numbers.length} total</span>
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="outline" onClick={importFromTwilio} disabled={importing}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Import from Twilio
+              </Button>
+              <span className="text-xs text-muted-foreground">{numbers.length} total</span>
+            </div>
           </div>
 
           <Card className="p-4 sm:p-5">
