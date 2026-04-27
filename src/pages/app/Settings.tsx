@@ -48,9 +48,9 @@ const Settings = () => {
     if (!user || !shiftName.trim()) return;
     setShifting(true);
     const { data, error } = await supabase.rpc("create_organization", {
-      _name: shiftName.trim(),
       _company_email: shiftEmail.trim() || null,
       _company_phone: shiftPhone.trim() || null,
+      _name: shiftName.trim(),
     });
     if (error || !data) {
       setShifting(false);

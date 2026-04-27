@@ -88,9 +88,9 @@ const Organisation = () => {
     if (!user || !name.trim()) return;
     setCreating(true);
     const { data, error } = await supabase.rpc("create_organization", {
-      _name: name.trim(),
       _company_email: null,
       _company_phone: null,
+      _name: name.trim(),
     });
     if (error || !data) {
       setCreating(false);
