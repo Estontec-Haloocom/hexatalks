@@ -43,16 +43,41 @@ const Organisation = () => {
   const loadMembers = async () => {
     if (!currentOrg) return;
     setLoadingMembers(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("organization_members")
-      .select("id,user_id,invited_email,role,created_at,profile:profiles(email,full_name)")
+      .select("id,user_id,invited_email,role,created_at")
       .eq("organization_id", currentOrg.id)
       .order("created_at", { ascending: true });
-    const list: Member[] = (data ?? []).map((m: any) => ({
-      id: m.id, user_id: m.user_id, invited_email: m.invited_email,
-      role: m.role, created_at: m.created_at,
-      email: m.profile?.email ?? null, full_name: m.profile?.full_name ?? null,
-    }));
+    if (error) {
+      setLoadingMembers(false);
+      toast({ title: "Could not load members", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const userIds = Array.from(new Set((data ?? []).map((m: any) => m.user_id).filter(Boolean)));
+    const profileById = new Map<string, { email: string | null; full_name: string | null }>();
+    if (userIds.length) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id,email,full_name")
+        .in("id", userIds);
+      (profiles ?? []).forEach((p: any) => {
+        profileById.set(p.id, { email: p.email ?? null, full_name: p.full_name ?? null });
+      });
+    }
+
+    const list: Member[] = (data ?? []).map((m: any) => {
+      const profile = m.user_id ? profileById.get(m.user_id) : null;
+      return {
+        id: m.id,
+        user_id: m.user_id,
+        invited_email: m.invited_email,
+        role: m.role,
+        created_at: m.created_at,
+        email: profile?.email ?? null,
+        full_name: profile?.full_name ?? null,
+      };
+    });
     setMembers(list);
     setLoadingMembers(false);
   };
@@ -62,24 +87,20 @@ const Organisation = () => {
   const createOrg = async () => {
     if (!user || !name.trim()) return;
     setCreating(true);
-    const { data, error } = await supabase
-      .from("organizations")
-      .insert({ name: name.trim(), owner_id: user.id, is_personal: false })
-      .select("id")
-      .single();
+    const { data, error } = await supabase.rpc("create_organization", {
+      _name: name.trim(),
+      _company_email: null,
+      _company_phone: null,
+    });
     if (error || !data) {
       setCreating(false);
       toast({ title: "Could not create organization", description: error?.message, variant: "destructive" });
       return;
     }
-    const { error: mErr } = await supabase.from("organization_members").insert({
-      organization_id: data.id, user_id: user.id, role: "owner",
-    });
     setCreating(false);
-    if (mErr) { toast({ title: "Created, but couldn't add you as owner", description: mErr.message, variant: "destructive" }); return; }
     toast({ title: "Organization created" });
     await refresh();
-    await switchOrg(data.id);
+    await switchOrg(data);
     setName(""); setCreateOpen(false);
   };
 

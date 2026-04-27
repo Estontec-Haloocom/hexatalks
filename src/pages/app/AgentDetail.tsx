@@ -77,6 +77,16 @@ const AgentDetail = () => {
     supabase.from("calls").select("*").eq("agent_id", id).order("created_at", { ascending: false }).then(({ data }) => setCalls(data ?? []));
   }, [id]);
 
+  const reloadCalls = async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("calls")
+      .select("*")
+      .eq("agent_id", id)
+      .order("created_at", { ascending: false });
+    setCalls(data ?? []);
+  };
+
   const save = async () => {
     if (!agent) return;
     setSaving(true);
@@ -134,6 +144,8 @@ const AgentDetail = () => {
     }
     setPlacing(true);
     try {
+      // Unified outbound runtime: same agent config + platform logic as test mode,
+      // while still dialing through Twilio from server-side secrets.
       const { data, error } = await supabase.functions.invoke("vapi-place-call", {
         body: { agentId: agent.id, toNumber: to },
       });
@@ -141,6 +153,14 @@ const AgentDetail = () => {
       if (data && data.ok === false) throw new Error(data.error || "Could not place call");
       toast({ title: "Call queued", description: `Calling ${to}…` });
       setDestNumber("");
+      await reloadCalls();
+      if (data?.vapiCallId) {
+        // Sync status/transcript in the background so call history is updated.
+        setTimeout(async () => {
+          await supabase.functions.invoke("vapi-sync-call", { body: { callId: data.vapiCallId } });
+          await reloadCalls();
+        }, 15000);
+      }
     } catch (e: any) {
       console.error("placeCall failed:", e);
       toast({ title: "Could not place call", description: fmtErr(e), variant: "destructive" });

@@ -47,29 +47,20 @@ const Settings = () => {
   const createOrgFromSettings = async () => {
     if (!user || !shiftName.trim()) return;
     setShifting(true);
-    const { data, error } = await supabase
-      .from("organizations")
-      .insert({
-        name: shiftName.trim(),
-        company_email: shiftEmail.trim() || null,
-        company_phone: shiftPhone.trim() || null,
-        owner_id: user.id,
-        is_personal: false,
-      })
-      .select("id").single();
+    const { data, error } = await supabase.rpc("create_organization", {
+      _name: shiftName.trim(),
+      _company_email: shiftEmail.trim() || null,
+      _company_phone: shiftPhone.trim() || null,
+    });
     if (error || !data) {
       setShifting(false);
       toast({ title: "Could not create organisation", description: error?.message, variant: "destructive" });
       return;
     }
-    const { error: mErr } = await supabase.from("organization_members").insert({
-      organization_id: data.id, user_id: user.id, role: "owner",
-    });
     setShifting(false);
-    if (mErr) { toast({ title: "Created, but couldn't add owner", description: mErr.message, variant: "destructive" }); return; }
     toast({ title: "Organisation created", description: "You're now switched to your new organisation." });
     await refreshOrgs();
-    await switchOrg(data.id);
+    await switchOrg(data);
     setShiftOpen(false); setShiftName(""); setShiftPhone("");
     navigate("/app/organisation");
   };
