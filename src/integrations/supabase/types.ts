@@ -20,12 +20,14 @@ export type Database = {
           description: string | null
           first_message: string
           id: string
+          inbound_enabled: boolean
           industry: string
           language: string
           model: string
           model_provider: string
           name: string
           org_id: string
+          outbound_enabled: boolean
           system_prompt: string
           temperature: number
           updated_at: string
@@ -39,12 +41,14 @@ export type Database = {
           description?: string | null
           first_message: string
           id?: string
+          inbound_enabled?: boolean
           industry: string
           language?: string
           model?: string
           model_provider?: string
           name: string
           org_id: string
+          outbound_enabled?: boolean
           system_prompt: string
           temperature?: number
           updated_at?: string
@@ -58,12 +62,14 @@ export type Database = {
           description?: string | null
           first_message?: string
           id?: string
+          inbound_enabled?: boolean
           industry?: string
           language?: string
           model?: string
           model_provider?: string
           name?: string
           org_id?: string
+          outbound_enabled?: boolean
           system_prompt?: string
           temperature?: number
           updated_at?: string

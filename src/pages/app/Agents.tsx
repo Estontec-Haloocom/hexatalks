@@ -9,7 +9,15 @@ import { Card } from "@/components/ui/card";
 import { INDUSTRIES } from "@/lib/industries";
 import { useToast } from "@/hooks/use-toast";
 
-type Agent = { id: string; name: string; industry: string; created_at: string; first_message: string };
+type Agent = {
+  id: string;
+  name: string;
+  industry: string;
+  created_at: string;
+  first_message: string;
+  inbound_enabled: boolean;
+  outbound_enabled: boolean;
+};
 
 const Agents = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -23,7 +31,7 @@ const Agents = () => {
     setLoading(true);
     const { data } = await supabase
       .from("agents")
-      .select("id,name,industry,created_at,first_message")
+      .select("id,name,industry,created_at,first_message,inbound_enabled,outbound_enabled")
       .eq("org_id", currentOrgId)
       .order("created_at", { ascending: false });
     setAgents((data as Agent[]) ?? []);
@@ -76,6 +84,18 @@ const Agents = () => {
                       </div>
                     </div>
                     <p className="mt-4 line-clamp-2 text-sm text-muted-foreground">"{a.first_message}"</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {a.inbound_enabled && (
+                        <span className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          Inbound
+                        </span>
+                      )}
+                      {a.outbound_enabled && (
+                        <span className="rounded-full border border-sky-300/40 bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700">
+                          Outbound
+                        </span>
+                      )}
+                    </div>
                   </Link>
                   <div className="mt-4 flex justify-end">
                     <Button

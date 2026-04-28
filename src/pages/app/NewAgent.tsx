@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Play, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,25 @@ const fmtErr = (value: any): string => {
   if (typeof value === "object") return fmtErr(value.message ?? value.error ?? value.errorMsg ?? JSON.stringify(value));
   return String(value);
 };
+const isMissingRelationError = (value: any): boolean => {
+  const code = value?.code;
+  const message = String(value?.message ?? "");
+  return code === "42P01" || message.includes("Could not find the table");
+};
 
-const STEPS = ["Industry", "Describe", "Voice", "Review"];
+const STEPS = ["Direction", "Industry", "Describe", "Voice", "Review"];
+const INDUSTRY_TYPES = [
+  "Healthcare",
+  "Real Estate",
+  "Restaurant",
+  "E-commerce",
+  "Education",
+  "Legal",
+  "Finance",
+  "Travel",
+  "SaaS",
+  "Other",
+];
 
 const COUNTRIES = [
   { id: "US", label: "🇺🇸 United States" },
@@ -68,12 +85,33 @@ const NewAgent = () => {
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [voiceSearch, setVoiceSearch] = useState("");
+  const [customIndustries, setCustomIndustries] = useState<Array<{ id: string; name: string; industry_type: string }>>([]);
+  const [customIndustryFeatureReady, setCustomIndustryFeatureReady] = useState(true);
+  const [showCustomIndustryForm, setShowCustomIndustryForm] = useState(false);
+  const [customIndustryName, setCustomIndustryName] = useState("");
+  const [customIndustryType, setCustomIndustryType] = useState(INDUSTRY_TYPES[0]);
+  const [savingCustomIndustry, setSavingCustomIndustry] = useState(false);
+  const [editingCustomIndustryId, setEditingCustomIndustryId] = useState<string | null>(null);
+  const [callDirection, setCallDirection] = useState<"inbound" | "outbound">("outbound");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: catalog } = useVoiceCatalog();
   const { currentOrgId } = useOrg();
 
-  const ind = INDUSTRIES.find((i) => i.id === industry);
+  const mappedCustomIndustries = useMemo(() => {
+    return customIndustries.map((ci) => ({
+      id: `custom-${ci.id}`,
+      name: ci.name,
+      tagline: `${ci.industry_type} (Custom)`,
+      icon: Building2,
+      accent: "from-slate-500/20 to-slate-500/5",
+      starterPrompt: `You are a professional voice assistant for ${ci.name} in the ${ci.industry_type} industry. Help callers with clear, concise, and friendly responses. Ask clarifying questions when needed and confirm important details before ending the call.`,
+      starterFirstMessage: `Hi, thanks for calling ${ci.name}. How can I help you today?`,
+      goals: ["Handle calls clearly", "Collect key information", "Route or resolve requests"],
+    }));
+  }, [customIndustries]);
+  const allIndustries = useMemo(() => [...mappedCustomIndustries, ...INDUSTRIES], [mappedCustomIndustries]);
+  const ind = allIndustries.find((i) => i.id === industry);
   const allVoices = catalog?.voices ?? [];
   const languages = catalog?.languages ?? [];
 
@@ -116,6 +154,134 @@ const NewAgent = () => {
     audio.play().catch(() => setPreviewing(null));
   };
 
+  const loadCustomIndustries = async () => {
+    if (!currentOrgId) {
+      setCustomIndustries([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("custom_industries" as any)
+      .select("id,name,industry_type")
+      .eq("org_id", currentOrgId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      if (isMissingRelationError(error)) {
+        setCustomIndustryFeatureReady(false);
+        setCustomIndustries([]);
+        return;
+      }
+      toast({ title: "Could not load custom industries", description: fmtErr(error), variant: "destructive" });
+      return;
+    }
+    setCustomIndustryFeatureReady(true);
+    setCustomIndustries((data as any[]) ?? []);
+  };
+
+  useEffect(() => {
+    loadCustomIndustries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentOrgId]);
+
+  const saveCustomIndustry = async () => {
+    if (!customIndustryName.trim()) {
+      toast({ title: "Industry name required", variant: "destructive" });
+      return;
+    }
+    if (!currentOrgId) {
+      toast({ title: "No organisation selected", variant: "destructive" });
+      return;
+    }
+    if (!customIndustryFeatureReady) {
+      toast({
+        title: "Custom industries are not enabled yet",
+        description: "Run the latest Supabase migrations, then refresh this page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingCustomIndustry(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not signed in");
+      const { data, error } = await supabase.from("custom_industries" as any).insert({
+        org_id: currentOrgId,
+        user_id: user.id,
+        name: customIndustryName.trim(),
+        industry_type: customIndustryType,
+      }).select("id,name,industry_type").single();
+      if (error) throw error;
+      setCustomIndustries((prev) => [...prev, data as any]);
+      setIndustry(`custom-${(data as any).id}`);
+      setShowCustomIndustryForm(false);
+      setCustomIndustryName("");
+      toast({ title: "Custom industry created" });
+    } catch (err: any) {
+      if (isMissingRelationError(err)) {
+        setCustomIndustryFeatureReady(false);
+        toast({
+          title: "Custom industries are not enabled yet",
+          description: "Run the latest Supabase migrations, then refresh this page.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({ title: "Could not create industry", description: fmtErr(err), variant: "destructive" });
+    } finally {
+      setSavingCustomIndustry(false);
+    }
+  };
+
+  const startEditCustomIndustry = (id: string) => {
+    const current = customIndustries.find((x) => x.id === id);
+    if (!current) return;
+    setEditingCustomIndustryId(id);
+    setShowCustomIndustryForm(true);
+    setCustomIndustryName(current.name);
+    setCustomIndustryType(current.industry_type);
+  };
+
+  const deleteCustomIndustry = async (id: string) => {
+    if (!confirm("Delete this custom industry?")) return;
+    try {
+      const { error } = await supabase.from("custom_industries" as any).delete().eq("id", id);
+      if (error) throw error;
+      setCustomIndustries((prev) => prev.filter((x) => x.id !== id));
+      if (industry === `custom-${id}`) setIndustry("");
+      toast({ title: "Custom industry deleted" });
+    } catch (err: any) {
+      toast({ title: "Could not delete industry", description: fmtErr(err), variant: "destructive" });
+    }
+  };
+
+  const upsertCustomIndustry = async () => {
+    if (!customIndustryName.trim()) {
+      toast({ title: "Industry name required", variant: "destructive" });
+      return;
+    }
+    if (editingCustomIndustryId) {
+      setSavingCustomIndustry(true);
+      try {
+        const { data, error } = await supabase.from("custom_industries" as any).update({
+          name: customIndustryName.trim(),
+          industry_type: customIndustryType,
+        }).eq("id", editingCustomIndustryId).select("id,name,industry_type").single();
+        if (error) throw error;
+        setCustomIndustries((prev) => prev.map((x) => x.id === editingCustomIndustryId ? (data as any) : x));
+        setIndustry(`custom-${(data as any).id}`);
+        setEditingCustomIndustryId(null);
+        setShowCustomIndustryForm(false);
+        setCustomIndustryName("");
+        toast({ title: "Custom industry updated" });
+      } catch (err: any) {
+        toast({ title: "Could not update industry", description: fmtErr(err), variant: "destructive" });
+      } finally {
+        setSavingCustomIndustry(false);
+      }
+      return;
+    }
+    await saveCustomIndustry();
+  };
+
   const generate = async () => {
     if (!ind || !description.trim()) {
       toast({ title: "Add a description first", variant: "destructive" });
@@ -152,8 +318,8 @@ const NewAgent = () => {
   };
 
   const next = async () => {
-    if (step === 0 && !industry) return;
-    if (step === 1 && !systemPrompt) await generate();
+    if (step === 1 && !industry) return;
+    if (step === 2 && !systemPrompt) await generate();
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
@@ -175,6 +341,8 @@ const NewAgent = () => {
         voice_id: finalVoice?.id ?? voiceId ?? "jennifer",
         voice_provider: finalVoice?.provider ?? "11labs",
         language,
+        inbound_enabled: callDirection === "inbound",
+        outbound_enabled: callDirection === "outbound",
       }).select("id").single();
       if (error) throw error;
       toast({ title: "Agent created", description: "Open the Test tab to talk to it." });
@@ -209,28 +377,110 @@ const NewAgent = () => {
             <motion.div key={step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
               {step === 0 && (
                 <Card className="p-5 sm:p-8">
-                  <h2 className="font-display text-2xl tracking-tight">Pick your industry</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">We'll pre-tune the prompt and voice for your use case.</p>
-                  <div className="mt-5 grid gap-3 sm:mt-6 sm:gap-4 sm:grid-cols-2">
-                    {INDUSTRIES.map((i) => (
-                      <button key={i.id} onClick={() => setIndustry(i.id)} className={cn(
-                        "group rounded-xl border p-4 text-left transition-all sm:p-5",
-                        industry === i.id ? "border-accent bg-accent-soft shadow-[var(--shadow-elev)]" : "border-border hover:border-accent/50 hover:bg-surface"
-                      )}>
-                        <div className="flex items-start gap-3">
-                          <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground"><i.icon className="h-4 w-4" /></div>
-                          <div>
-                            <div className="font-semibold">{i.name}</div>
-                            <div className="text-sm text-muted-foreground">{i.tagline}</div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
+                  <h2 className="font-display text-2xl tracking-tight">Pick call direction</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Choose one direction for this agent.</p>
+                  <div className="mt-5 grid gap-3 sm:mt-6 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setCallDirection("inbound")}
+                      className={cn(
+                        "rounded-xl border p-4 text-left transition-colors sm:p-5",
+                        callDirection === "inbound" ? "border-accent bg-accent-soft shadow-[var(--shadow-elev)]" : "border-border hover:bg-surface",
+                      )}
+                    >
+                      <div className="font-semibold">Inbound</div>
+                      <div className="text-sm text-muted-foreground">Receive incoming calls</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCallDirection("outbound")}
+                      className={cn(
+                        "rounded-xl border p-4 text-left transition-colors sm:p-5",
+                        callDirection === "outbound" ? "border-accent bg-accent-soft shadow-[var(--shadow-elev)]" : "border-border hover:bg-surface",
+                      )}
+                    >
+                      <div className="font-semibold">Outbound</div>
+                      <div className="text-sm text-muted-foreground">Place outgoing calls</div>
+                    </button>
                   </div>
                 </Card>
               )}
 
               {step === 1 && (
+                <Card className="p-5 sm:p-8">
+                  <h2 className="font-display text-2xl tracking-tight">Pick your industry</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">We'll pre-tune the prompt and voice for your use case.</p>
+                  <div className="mt-5 grid gap-3 sm:mt-6 sm:gap-4 sm:grid-cols-2">
+                    <button
+                      disabled={!customIndustryFeatureReady}
+                      onClick={() => setShowCustomIndustryForm((v) => !v)}
+                      className={cn(
+                        "group rounded-xl border border-dashed p-4 text-left transition-all sm:p-5",
+                        showCustomIndustryForm ? "border-accent bg-accent-soft shadow-[var(--shadow-elev)]" : "border-border hover:border-accent/50 hover:bg-surface",
+                        !customIndustryFeatureReady && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground"><Plus className="h-4 w-4" /></div>
+                        <div>
+                          <div className="font-semibold">Create Your Own Industry</div>
+                          <div className="text-sm text-muted-foreground">Add a custom industry for this organisation.</div>
+                        </div>
+                      </div>
+                    </button>
+                    {!customIndustryFeatureReady && (
+                      <p className="sm:col-span-2 text-sm text-muted-foreground">
+                        Custom industries require the latest Supabase migration (`20260428170000_create_custom_industries.sql`).
+                      </p>
+                    )}
+                    {showCustomIndustryForm && (
+                      <Card className="sm:col-span-2 space-y-3 p-4">
+                        <div className="space-y-1.5">
+                          <Label>Industry name</Label>
+                          <Input value={customIndustryName} onChange={(e) => setCustomIndustryName(e.target.value)} placeholder="e.g. Hexa Logistics" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Industry type</Label>
+                          <select value={customIndustryType} onChange={(e) => setCustomIndustryType(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            {INDUSTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <Button onClick={upsertCustomIndustry} disabled={savingCustomIndustry}>
+                          {savingCustomIndustry ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : editingCustomIndustryId ? "Update custom industry" : "Save custom industry"}
+                        </Button>
+                      </Card>
+                    )}
+                    {allIndustries.map((i) => (
+                      <div key={i.id} className={cn(
+                        "group rounded-xl border p-4 text-left transition-all sm:p-5",
+                        industry === i.id ? "border-accent bg-accent-soft shadow-[var(--shadow-elev)]" : "border-border hover:border-accent/50 hover:bg-surface"
+                      )}>
+                        <button onClick={() => setIndustry(i.id)} className="w-full text-left">
+                          <div className="flex items-start gap-3">
+                            <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground"><i.icon className="h-4 w-4" /></div>
+                            <div>
+                              <div className="font-semibold">{i.name}</div>
+                              <div className="text-sm text-muted-foreground">{i.tagline}</div>
+                            </div>
+                          </div>
+                        </button>
+                        {i.id.startsWith("custom-") && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <Button type="button" size="sm" variant="outline" onClick={() => startEditCustomIndustry(i.id.replace("custom-", ""))}>
+                              <Pencil className="h-3.5 w-3.5" /> Edit
+                            </Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => deleteCustomIndustry(i.id.replace("custom-", ""))}>
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {step === 2 && (
                 <Card className="p-5 sm:p-8">
                   <h2 className="font-display text-2xl tracking-tight">Describe your business</h2>
                   <p className="mt-1 text-sm text-muted-foreground">More detail = sharper agent. Country & tone are used to write a precise prompt.</p>
@@ -332,7 +582,7 @@ const NewAgent = () => {
                 </Card>
               )}
 
-              {step === 2 && (
+              {step === 3 && (
                 <Card className="p-5 sm:p-8 space-y-6">
                   <div>
                     <h2 className="font-display text-2xl tracking-tight">Voice & language</h2>
@@ -432,7 +682,7 @@ const NewAgent = () => {
                 </Card>
               )}
 
-              {step === 3 && (
+              {step === 4 && (
                 <Card className="p-5 sm:p-8 space-y-5">
                   <h2 className="font-display text-2xl tracking-tight">Review & create</h2>
                   <dl className="divide-y divide-border rounded-lg border border-border">
@@ -440,6 +690,7 @@ const NewAgent = () => {
                       ["Name", name],
                       ["Business", businessName],
                       ["Industry", ind?.name],
+                      ["Direction", callDirection === "inbound" ? "Inbound" : "Outbound"],
                       ["Country", COUNTRIES.find((c) => c.id === country)?.label],
                       ["Accent", accent],
                       ["Tone", tone],
@@ -464,7 +715,7 @@ const NewAgent = () => {
           <div className="mt-6 flex justify-between">
             <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}><ArrowLeft className="h-4 w-4" /> Back</Button>
             {step < STEPS.length - 1 && (
-              <Button onClick={next} disabled={(step === 0 && !industry) || (step === 1 && !systemPrompt)}>Continue <ArrowRight className="h-4 w-4" /></Button>
+              <Button onClick={next} disabled={(step === 1 && !industry) || (step === 2 && !systemPrompt)}>Continue <ArrowRight className="h-4 w-4" /></Button>
             )}
           </div>
         </div>
