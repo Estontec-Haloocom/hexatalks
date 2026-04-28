@@ -98,6 +98,46 @@ const Transcriptions = () => {
     // eslint-disable-next-line
   }, [currentOrgId]);
 
+  useEffect(() => {
+    if (!currentOrgId) return;
+    const channel = supabase
+      .channel(`calls-live-${currentOrgId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "calls", filter: `org_id=eq.${currentOrgId}` },
+        () => {
+          loadCalls();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentOrgId]);
+
+  useEffect(() => {
+    if (!currentOrgId) return;
+    const timer = setInterval(async () => {
+      const candidates = calls
+        .filter((c) =>
+          !!c.vapi_call_id &&
+          (!c.recording_url || !c.transcript || c.status === "queued" || c.status === "in_progress"),
+        )
+        .slice(0, 5);
+      if (!candidates.length) return;
+
+      await Promise.all(
+        candidates.map((c) =>
+          supabase.functions.invoke("vapi-sync-call", { body: { callId: c.vapi_call_id } }),
+        ),
+      );
+    }, 10000);
+
+    return () => clearInterval(timer);
+  }, [calls, currentOrgId]);
+
   const enriched = useMemo(() => {
     return calls.map((c) => {
       const text = transcriptToText(c.transcript);
