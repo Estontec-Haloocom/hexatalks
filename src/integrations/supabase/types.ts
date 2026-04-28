@@ -143,8 +143,11 @@ export type Database = {
         Row: {
           created_at: string
           dev_mode_enabled: boolean
+          failover_enabled: boolean
+          fallback_voice_platform: string
           id: string
           org_id: string | null
+          telephony_provider: string
           updated_at: string
           user_id: string
           voice_platform: string
@@ -152,8 +155,11 @@ export type Database = {
         Insert: {
           created_at?: string
           dev_mode_enabled?: boolean
+          failover_enabled?: boolean
+          fallback_voice_platform?: string
           id?: string
           org_id?: string | null
+          telephony_provider?: string
           updated_at?: string
           user_id: string
           voice_platform?: string
@@ -161,11 +167,185 @@ export type Database = {
         Update: {
           created_at?: string
           dev_mode_enabled?: boolean
+          failover_enabled?: boolean
+          fallback_voice_platform?: string
           id?: string
           org_id?: string | null
+          telephony_provider?: string
           updated_at?: string
           user_id?: string
           voice_platform?: string
+        }
+        Relationships: []
+      }
+      integration_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          integration_id: string | null
+          next_retry_at: string | null
+          org_id: string
+          payload: Json | null
+          response: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          integration_id?: string | null
+          next_retry_at?: string | null
+          org_id: string
+          payload?: Json | null
+          response?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          integration_id?: string | null
+          next_retry_at?: string | null
+          org_id?: string
+          payload?: Json | null
+          response?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_deliveries_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_logs: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          integration_id: string | null
+          level: string
+          message: string
+          org_id: string
+          payload: Json | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          integration_id?: string | null
+          level?: string
+          message: string
+          org_id: string
+          payload?: Json | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          integration_id?: string | null
+          level?: string
+          message?: string
+          org_id?: string
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_logs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_secrets: {
+        Row: {
+          created_at: string
+          encrypted_value: string
+          id: string
+          integration_id: string
+          key_name: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_value: string
+          id?: string
+          integration_id: string
+          key_name: string
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_value?: string
+          id?: string
+          integration_id?: string
+          key_name?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_secrets_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrations: {
+        Row: {
+          config: Json
+          connected_at: string | null
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          org_id: string
+          provider: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          org_id: string
+          provider: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          org_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

@@ -6,16 +6,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const buildBlocks = async (supabase: any) => {
+const buildBlocks = async (supabase: any, orgId: string | null) => {
+  if (!orgId) return "";
   const { data } = await supabase
     .from("prompt_blocks")
     .select("name,content,enabled,position")
+    .eq("org_id", orgId)
     .eq("enabled", true)
     .order("position", { ascending: true });
   return (data ?? [])
     .filter((b: any) => b.content?.trim())
     .map((b: any) => `## ${b.name}\n${b.content.trim()}`)
     .join("\n\n");
+};
+
+const buildOrgPromptIde = async (supabase: any, orgId: string | null) => {
+  if (!orgId) return "";
+  const { data } = await supabase
+    .from("org_prompt_configs")
+    .select("enabled,format,content")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!data?.enabled || !data?.content?.trim()) return "";
+  const fmt = data.format || "text";
+  return `## Organization Prompt IDE (${String(fmt).toUpperCase()})\n\`\`\`${fmt}\n${data.content.trim()}\n\`\`\`\nApply this organization runtime config as high-priority guidance for this organization only.`;
 };
 
 const VOICE_MAP: Record<string, string> = {
@@ -111,7 +125,8 @@ serve(async (req) => {
         ? "ultravox"
         : "vapi";
 
-    const blocksText = await buildBlocks(supabase);
+    const blocksText = await buildBlocks(supabase, agent.org_id ?? null);
+    const orgPromptIdeText = await buildOrgPromptIde(supabase, agent.org_id ?? null);
 
     const tSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const tTok = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -131,7 +146,7 @@ serve(async (req) => {
     };
     const langName = LANG_NAMES[langShort] || fullLang;
     const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
-    const systemPromptLocalized = [agent.system_prompt || "", blocksText, languageDirective].filter(Boolean).join("\n\n");
+    const systemPromptLocalized = [agent.system_prompt || "", blocksText, orgPromptIdeText, languageDirective].filter(Boolean).join("\n\n");
 
     if (platform === "ultravox") {
       const ULTRAVOX_KEY = Deno.env.get("ULTRAVOX_API_KEY");

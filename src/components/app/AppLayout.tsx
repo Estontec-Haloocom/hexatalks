@@ -1,29 +1,31 @@
 import { ReactNode, useState } from "react";
 import { Link, Navigate, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio, MessageSquareHeart, Building2, Check, ChevronsUpDown } from "lucide-react";
+import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio, MessageSquareHeart, Building2, Check, ChevronsUpDown, PlugZap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
+import { useDevSettings } from "@/hooks/use-dev-settings";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/hexatalks-logo.webp";
 
-const nav = [
-  { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/app/agents", label: "Agents", icon: Bot },
-  { to: "/app/phone-numbers", label: "Phone numbers", icon: Phone },
-  { to: "/app/transcriptions", label: "Transcriptions", icon: FileAudio },
-  { to: "/app/feedback", label: "Feedback", icon: MessageSquareHeart },
-  { to: "/app/organisation", label: "Organisation", icon: Building2 },
-  { to: "/app/settings", label: "Settings", icon: Settings },
-];
-
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const { user, signOut } = useAuth();
   const { orgs, currentOrg, switchOrg } = useOrg();
+  const { settings } = useDevSettings();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const nav = [
+    { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
+    { to: "/app/agents", label: "Agents", icon: Bot },
+    { to: "/app/phone-numbers", label: "Phone numbers", icon: Phone },
+    { to: "/app/transcriptions", label: "Transcriptions", icon: FileAudio },
+    { to: "/app/feedback", label: "Feedback", icon: MessageSquareHeart },
+    ...(settings.dev_mode_enabled ? [{ to: "/app/integrations", label: "Integrations", icon: PlugZap }] : []),
+    { to: "/app/organisation", label: "Organisation", icon: Building2 },
+    { to: "/app/settings", label: "Settings", icon: Settings },
+  ];
 
   const SidebarInner = (
     <>

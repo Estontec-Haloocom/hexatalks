@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { startWebCall, type CallController } from "@/lib/voice-call";
 import { useDevSettings } from "@/hooks/use-dev-settings";
 import { usePromptBlocks } from "@/hooks/use-prompt-blocks";
+import { useOrgPromptConfig } from "@/hooks/use-org-prompt-config";
 
 type Agent = any;
 type Turn = { role: "user" | "assistant"; text: string };
@@ -70,6 +71,7 @@ const AgentDetail = () => {
   const { data: catalog } = useVoiceCatalog();
   const { settings: devSettings } = useDevSettings();
   const { blocks } = usePromptBlocks();
+  const { config: orgPromptConfig } = useOrgPromptConfig();
 
   useEffect(() => {
     if (!id) return;
@@ -104,7 +106,7 @@ const AgentDetail = () => {
     setCallStatus("connecting");
     setTranscript([]);
     try {
-      const ctrl = await startWebCall(devSettings.voice_platform, agent, blocks);
+      const ctrl = await startWebCall(devSettings.voice_platform, agent, blocks, { orgPromptConfig });
       callRef.current = ctrl;
       ctrl.on("status", (s) => setCallStatus(s));
       ctrl.on("volume", (v) => setVolume(v));

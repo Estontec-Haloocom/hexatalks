@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import Vapi from "@vapi-ai/web";
 import { UltravoxSession } from "ultravox-client";
-import { buildEnhancedSystemPrompt, type PromptBlock } from "@/hooks/use-prompt-blocks";
+import { buildEnhancedSystemPrompt, type OrgPromptConfigForBuild, type PromptBlock } from "@/hooks/use-prompt-blocks";
 import type { VoicePlatform } from "@/hooks/use-dev-settings";
 
 const VOICE_MAP: Record<string, string> = {
@@ -51,7 +51,7 @@ export const startWebCall = async (
   platform: VoicePlatform,
   agent: AgentLike,
   blocks: PromptBlock[],
-  overrides?: { systemPromptOverride?: string; firstMessageOverride?: string },
+  overrides?: { systemPromptOverride?: string; firstMessageOverride?: string; orgPromptConfig?: OrgPromptConfigForBuild | null },
 ): Promise<CallController> => {
   const listeners: Listeners = {};
   const emit = (e: string, p: any) => listeners[e]?.(p);
@@ -60,7 +60,7 @@ export const startWebCall = async (
   catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
 
   const baseSystem = overrides?.systemPromptOverride ?? agent.system_prompt;
-  const systemPrompt = buildEnhancedSystemPrompt(baseSystem, blocks, agent.language);
+  const systemPrompt = buildEnhancedSystemPrompt(baseSystem, blocks, agent.language, overrides?.orgPromptConfig);
   const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
 
   if (platform === "ultravox") {

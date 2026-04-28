@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
-import { useDevSettings, type VoicePlatform } from "@/hooks/use-dev-settings";
+import { useDevSettings, type VoicePlatform, type TelephonyProvider } from "@/hooks/use-dev-settings";
 import { usePromptBlocks, type PromptBlock } from "@/hooks/use-prompt-blocks";
+import { useOrgPromptConfig, type OrgPromptFormat } from "@/hooks/use-org-prompt-config";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +24,14 @@ const PLATFORMS: { id: VoicePlatform; label: string; description: string }[] = [
   { id: "ultravox", label: "Ultravox", description: "Ultra-low-latency speech-to-speech via Ultravox." },
 ];
 
+const TEL_PROVIDERS: { id: TelephonyProvider; label: string; description: string }[] = [
+  { id: "twilio", label: "Twilio", description: "Primary PSTN provider with current production edge functions." },
+  { id: "plivo", label: "Plivo", description: "Alternative telephony provider (scaffold mode)." },
+  { id: "exotel", label: "Exotel", description: "India-first telephony provider (scaffold mode)." },
+];
+
+const PROMPT_IDE_FORMATS: OrgPromptFormat[] = ["json", "python", "javascript", "markdown", "text"];
+
 const Settings = () => {
   const { user } = useAuth();
   const { currentOrgId, hasNonPersonalOrg, refresh: refreshOrgs, switchOrg } = useOrg();
@@ -30,9 +39,11 @@ const Settings = () => {
   const { toast } = useToast();
   const { settings, update } = useDevSettings();
   const { blocks, refresh: refreshBlocks, loading: blocksLoading } = usePromptBlocks();
+  const { config: orgPromptConfig, setConfig: setOrgPromptConfig, save: saveOrgPromptConfig, loading: orgPromptLoading } = useOrgPromptConfig();
 
   const [draft, setDraft] = useState<Record<string, PromptBlock>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [savingOrgPrompt, setSavingOrgPrompt] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newContent, setNewContent] = useState("");
@@ -114,6 +125,21 @@ const Settings = () => {
     refreshBlocks();
   };
 
+  const saveOrgPromptIde = async () => {
+    if (orgPromptConfig.format === "json" && orgPromptConfig.content.trim()) {
+      try {
+        JSON.parse(orgPromptConfig.content);
+      } catch {
+        toast({ title: "Invalid JSON", description: "Please fix JSON syntax before saving.", variant: "destructive" });
+        return;
+      }
+    }
+    setSavingOrgPrompt(true);
+    await saveOrgPromptConfig(orgPromptConfig);
+    setSavingOrgPrompt(false);
+    toast({ title: "Organization Prompt IDE saved" });
+  };
+
   return (
     <>
       <PageHeader title="Settings" description="Account, voice platform and developer tools." />
@@ -174,7 +200,94 @@ const Settings = () => {
                 </p>
               </div>
 
+              <div className="grid gap-2 sm:max-w-sm">
+                <Label>Telephony provider</Label>
+                <Select value={settings.telephony_provider} onValueChange={(v) => update({ telephony_provider: v as TelephonyProvider })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TEL_PROVIDERS.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {TEL_PROVIDERS.find((p) => p.id === settings.telephony_provider)?.description}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-medium">Provider failover</h4>
+                    <p className="text-xs text-muted-foreground">If primary runtime fails, fallback to backup voice platform automatically.</p>
+                  </div>
+                  <Switch checked={settings.failover_enabled} onCheckedChange={(v) => update({ failover_enabled: v })} />
+                </div>
+                {settings.failover_enabled && (
+                  <div className="mt-3 grid gap-2 sm:max-w-sm">
+                    <Label>Fallback voice platform</Label>
+                    <Select value={settings.fallback_voice_platform} onValueChange={(v) => update({ fallback_voice_platform: v as VoicePlatform })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PLATFORMS.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
               <div>
+                <div className="mb-6 rounded-lg border border-border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-medium">Organization Prompt IDE</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Per-organization runtime prompt config. Supports JSON, Python, JavaScript, Markdown, or plain text.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={orgPromptConfig.enabled}
+                      onCheckedChange={(v) => setOrgPromptConfig({ ...orgPromptConfig, enabled: v })}
+                      disabled={orgPromptLoading}
+                    />
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:max-w-xs">
+                    <Label>Format</Label>
+                    <Select value={orgPromptConfig.format} onValueChange={(v) => setOrgPromptConfig({ ...orgPromptConfig, format: v as OrgPromptFormat })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PROMPT_IDE_FORMATS.map((fmt) => (
+                          <SelectItem key={fmt} value={fmt}>{fmt.toUpperCase()}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="mt-3 grid gap-2">
+                    <Label>Prompt IDE</Label>
+                    <Textarea
+                      rows={12}
+                      value={orgPromptConfig.content}
+                      onChange={(e) => setOrgPromptConfig({ ...orgPromptConfig, content: e.target.value })}
+                      className="font-mono text-xs"
+                      placeholder={
+                        orgPromptConfig.format === "json"
+                          ? `{\n  "companyTone": "professional",\n  "rules": ["confirm key details before ending"]\n}`
+                          : "# Organization specific runtime instructions"
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-3 flex justify-end">
+                    <Button size="sm" onClick={saveOrgPromptIde} disabled={savingOrgPrompt || orgPromptLoading}>
+                      {savingOrgPrompt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save Prompt IDE
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-medium">Global prompt blocks</h4>

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { startWebCall, type CallController } from "@/lib/voice-call";
 import { useDevSettings } from "@/hooks/use-dev-settings";
 import { usePromptBlocks } from "@/hooks/use-prompt-blocks";
+import { useOrgPromptConfig } from "@/hooks/use-org-prompt-config";
 import { useOrg } from "@/contexts/OrgContext";
 
 type Agent = {
@@ -87,6 +88,7 @@ const Feedback = () => {
   const callRef = useRef<CallController | null>(null);
   const { settings: devSettings } = useDevSettings();
   const { blocks } = usePromptBlocks();
+  const { config: orgPromptConfig } = useOrgPromptConfig();
 
   const refresh = async () => {
     if (!currentOrgId) { setAgents([]); setItems([]); setLoading(false); return; }
@@ -182,6 +184,7 @@ const Feedback = () => {
       }, blocks, {
         systemPromptOverride: buildFeedbackSystemPrompt(),
         firstMessageOverride: firstMessage,
+        orgPromptConfig,
       });
       callRef.current = ctrl;
       ctrl.on("status", (s) => setCallStatus(s));

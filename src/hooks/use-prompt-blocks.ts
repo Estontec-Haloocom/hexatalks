@@ -11,6 +11,12 @@ export type PromptBlock = {
   position: number;
 };
 
+export type OrgPromptConfigForBuild = {
+  enabled?: boolean;
+  format?: string;
+  content?: string;
+};
+
 export const usePromptBlocks = () => {
   const { user } = useAuth();
   const { currentOrgId } = useOrg();
@@ -18,7 +24,11 @@ export const usePromptBlocks = () => {
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
-    if (!user || !currentOrgId) { setBlocks([]); setLoading(false); return; }
+    if (!user || !currentOrgId) {
+      setBlocks([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data } = await supabase
       .from("prompt_blocks")
@@ -30,7 +40,10 @@ export const usePromptBlocks = () => {
     setLoading(false);
   };
 
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [user?.id, currentOrgId]);
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, currentOrgId]);
 
   return { blocks, loading, refresh };
 };
@@ -39,6 +52,7 @@ export const buildEnhancedSystemPrompt = (
   basePrompt: string,
   blocks: PromptBlock[],
   language?: string,
+  orgPromptConfig?: OrgPromptConfigForBuild | null,
 ) => {
   const enabled = blocks.filter((b) => b.enabled && b.content.trim());
   const fullLang = language || "en-US";
@@ -53,5 +67,10 @@ export const buildEnhancedSystemPrompt = (
   const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
 
   const blocksText = enabled.map((b) => `## ${b.name}\n${b.content.trim()}`).join("\n\n");
-  return [basePrompt || "", blocksText, languageDirective].filter(Boolean).join("\n\n");
+  const ideText =
+    orgPromptConfig?.enabled && orgPromptConfig?.content?.trim()
+      ? `## Organization Prompt IDE (${(orgPromptConfig.format || "text").toUpperCase()})\n\`\`\`${orgPromptConfig.format || "text"}\n${orgPromptConfig.content.trim()}\n\`\`\`\nApply this organization runtime config as high-priority guidance for this organization only.`
+      : "";
+
+  return [basePrompt || "", blocksText, ideText, languageDirective].filter(Boolean).join("\n\n");
 };
