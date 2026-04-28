@@ -131,12 +131,12 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
 };
 
 export const PageHeader = ({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) => (
-  <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border bg-background px-5 py-5 sm:px-8 sm:py-6">
-    <div>
+  <div className="flex flex-col gap-3 border-b border-border bg-background px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:px-8 sm:py-6">
+    <div className="min-w-0">
       <h1 className="font-display text-2xl tracking-tight sm:text-3xl">{title}</h1>
       {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
     </div>
-    {actions}
+    {actions && <div className="w-full sm:w-auto">{actions}</div>}
   </div>
 );
 

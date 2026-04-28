@@ -175,38 +175,44 @@ const Integrations = () => {
       <PageHeader
         title="Integrations"
         description="Connect external platforms and monitor integration activity."
-        actions={<Button variant="outline" onClick={load} disabled={loading}><RefreshCw className="h-4 w-4" /> Refresh</Button>}
+        actions={
+          <Button className="w-full sm:w-auto" variant="outline" onClick={load} disabled={loading}>
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </Button>
+        }
       />
-      <div className="space-y-6 px-5 py-6 sm:p-8">
+      <div className="space-y-4 px-3 py-4 sm:space-y-6 sm:px-5 sm:py-6 sm:p-8">
         <Tabs defaultValue="available">
-          <TabsList>
-            <TabsTrigger value="available">Available</TabsTrigger>
-            <TabsTrigger value="connected">Connected</TabsTrigger>
-            <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
-            <TabsTrigger value="logs">Logs</TabsTrigger>
-            <TabsTrigger value="secrets">Secrets</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto pb-1">
+            <TabsList className="inline-flex h-10 w-max min-w-full justify-start gap-1 rounded-xl p-1">
+              <TabsTrigger className="shrink-0 px-3 text-xs sm:text-sm" value="available">Available</TabsTrigger>
+              <TabsTrigger className="shrink-0 px-3 text-xs sm:text-sm" value="connected">Connected</TabsTrigger>
+              <TabsTrigger className="shrink-0 px-3 text-xs sm:text-sm" value="deliveries">Deliveries</TabsTrigger>
+              <TabsTrigger className="shrink-0 px-3 text-xs sm:text-sm" value="logs">Logs</TabsTrigger>
+              <TabsTrigger className="shrink-0 px-3 text-xs sm:text-sm" value="secrets">Secrets</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="available" className="mt-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2.5 sm:gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {PROVIDERS.map((provider) => {
                 const connected = connectedSet.has(provider.name.toLowerCase());
                 return (
-                  <Card key={provider.name} className="space-y-3 p-4">
+                  <Card key={provider.name} className="space-y-2.5 p-3 sm:p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-medium">
+                      <div className="flex min-w-0 items-center gap-2 font-medium">
                         <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-background p-1">
                           <img src={provider.logo} alt={`${provider.name} logo`} className="h-4 w-4 object-contain" />
                         </div>
-                        {provider.name}
+                        <span className="truncate">{provider.name}</span>
                       </div>
-                      {connected ? <Badge>Connected</Badge> : <Badge variant="outline">Not connected</Badge>}
+                      {connected ? <Badge className="shrink-0">Connected</Badge> : <Badge className="shrink-0" variant="outline">Not connected</Badge>}
                     </div>
-                    <div className="text-xs text-muted-foreground">OAuth/API-based integration scaffold. Connector actions can be extended per provider.</div>
+                    <div className="text-xs leading-relaxed text-muted-foreground">OAuth/API-based integration scaffold. Connector actions can be extended per provider.</div>
                     {connected ? (
-                      <Button variant="outline" onClick={() => disconnectProvider(provider.name)} disabled={busyProvider === provider.name}>Disconnect</Button>
+                      <Button className="w-full sm:w-auto" variant="outline" onClick={() => disconnectProvider(provider.name)} disabled={busyProvider === provider.name}>Disconnect</Button>
                     ) : (
-                      <Button onClick={() => connectProvider(provider.name)} disabled={busyProvider === provider.name}><Link2 className="h-4 w-4" /> Connect</Button>
+                      <Button className="w-full sm:w-auto" onClick={() => connectProvider(provider.name)} disabled={busyProvider === provider.name}><Link2 className="h-4 w-4" /> Connect</Button>
                     )}
                   </Card>
                 );
