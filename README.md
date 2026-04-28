@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Hexatalks AI Studio
 
-TODO: Document your project here
+Voice AI studio for creating, testing, and deploying agent-driven phone/web calls with Supabase, Vapi, and Ultravox.
