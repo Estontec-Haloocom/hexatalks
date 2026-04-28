@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, Navigate, NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Bot, Phone, Settings, LogOut, Plus, Menu, X, FileAudio, MessageSquareHeart, Building2, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
@@ -142,8 +142,8 @@ export const PageHeader = ({ title, description, actions }: { title: string; des
 
 export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
-  if (loading) return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading…</div>;
-  if (!user) { navigate("/auth", { replace: true }); return null; }
+  if (loading) return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading...</div>;
+  if (!user) return <Navigate to="/auth" replace />;
   return <AppLayout>{children}</AppLayout>;
 };
+

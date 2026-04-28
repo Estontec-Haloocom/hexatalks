@@ -27,17 +27,24 @@ const Auth = () => {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email, password,
           options: { emailRedirectTo: `${window.location.origin}/app`, data: { full_name: name } },
         });
         if (error) throw error;
-        toast({ title: "Account created", description: "Welcome to Hexatalks!" });
+        if (data.session) {
+          navigate("/app", { replace: true });
+        } else {
+          toast({ title: "Account created", description: "Please verify your email, then sign in." });
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data.session) {
+          throw new Error("Sign-in did not return a session. Please try again.");
+        }
+        navigate("/app", { replace: true });
       }
-      navigate("/app", { replace: true });
     } catch (err: any) {
       toast({ title: "Authentication failed", description: err.message, variant: "destructive" });
     } finally {
