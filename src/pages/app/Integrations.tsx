@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { useDevSettings } from "@/hooks/use-dev-settings";
 import slackLogo from "@/assets/integrations/slack.svg";
 import gmailLogo from "@/assets/integrations/gmail.svg";
 import calendarLogo from "@/assets/integrations/google-calendar.svg";
@@ -53,7 +52,6 @@ const PROVIDERS = [
 
 const Integrations = () => {
   const { currentOrgId } = useOrg();
-  const { settings } = useDevSettings();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<IntegrationRow[]>([]);
@@ -171,19 +169,6 @@ const Integrations = () => {
       setBusyProvider(null);
     }
   };
-
-  if (!settings.dev_mode_enabled) {
-    return (
-      <>
-        <PageHeader title="Integrations" description="Enable Developer Mode in Settings to unlock integration tools." />
-        <div className="px-5 py-6 sm:p-8">
-          <Card className="p-6 text-sm text-muted-foreground">
-            Developer Mode is currently off. Turn it on in Settings to access integration workflows.
-          </Card>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
