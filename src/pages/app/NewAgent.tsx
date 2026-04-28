@@ -67,6 +67,7 @@ const NewAgent = () => {
   const [generating, setGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<string | null>(null);
+  const [voiceSearch, setVoiceSearch] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: catalog } = useVoiceCatalog();
@@ -76,7 +77,7 @@ const NewAgent = () => {
   const allVoices = catalog?.voices ?? [];
   const languages = catalog?.languages ?? [];
 
-  const filteredVoices = useMemo(() => {
+  const strictFilteredVoices = useMemo(() => {
     const langPrefix = language.slice(0, 2).toLowerCase();
     return allVoices.filter((v) => {
       const langOk = !v.language || v.language.toLowerCase().startsWith(langPrefix);
@@ -90,7 +91,19 @@ const NewAgent = () => {
     });
   }, [allVoices, language, gender, accent]);
 
-  const visibleVoices = filteredVoices.length ? filteredVoices : allVoices;
+  const languageOnlyVoices = useMemo(() => {
+    const langPrefix = language.slice(0, 2).toLowerCase();
+    return allVoices.filter((v) => !v.language || v.language.toLowerCase().startsWith(langPrefix));
+  }, [allVoices, language]);
+
+  const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : (languageOnlyVoices.length ? languageOnlyVoices : allVoices);
+  const visibleVoices = useMemo(() => {
+    const q = voiceSearch.trim().toLowerCase();
+    if (!q) return baseVoices;
+    return baseVoices.filter((v) =>
+      `${v.label} ${v.description} ${v.id} ${v.accent ?? ""} ${v.gender ?? ""} ${v.country ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [baseVoices, voiceSearch]);
   const selectedVoice: VoiceOption | undefined =
     visibleVoices.find((v) => v.id === voiceId) ?? visibleVoices[0];
 
@@ -237,24 +250,6 @@ const NewAgent = () => {
                           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${ind?.name} Receptionist`} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Country / market</Label>
-                          <select value={country} onChange={(e) => setCountry(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                            {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Accent / dialect</Label>
-                          <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                            {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Voice gender</Label>
-                          <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                            {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
                           <Label>Top use cases</Label>
                           <Input value={useCases} onChange={(e) => setUseCases(e.target.value)} placeholder="Book appointments, answer pricing, qualify leads" />
                         </div>
@@ -301,26 +296,6 @@ const NewAgent = () => {
                         <Label>Agent name</Label>
                         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${ind?.name} Receptionist`} />
                       </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <Label>Country / market</Label>
-                          <select value={country} onChange={(e) => setCountry(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                            {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Accent / dialect</Label>
-                          <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                            {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Voice gender</Label>
-                        <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                          {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                      </div>
                       <div className="space-y-1.5">
                         <Label>Top use cases</Label>
                         <Input value={useCases} onChange={(e) => setUseCases(e.target.value)} placeholder="Book appointments, answer pricing, qualify leads" />
@@ -364,6 +339,27 @@ const NewAgent = () => {
                     <p className="mt-1 text-sm text-muted-foreground">Filtered by your accent, gender and language. Click ▶ to preview.</p>
                   </div>
 
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label>Country / market</Label>
+                      <select value={country} onChange={(e) => setCountry(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                        {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Accent / dialect</Label>
+                      <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                        {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Voice gender</Label>
+                      <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                        {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
                     <Label className="mb-3 block">Language</Label>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -381,13 +377,30 @@ const NewAgent = () => {
                       <Label>Character voice</Label>
                       <span className="text-xs text-muted-foreground">{visibleVoices.length} match{visibleVoices.length === 1 ? "" : "es"}</span>
                     </div>
+                    <div className="mb-3">
+                      <Input
+                        value={voiceSearch}
+                        onChange={(e) => setVoiceSearch(e.target.value)}
+                        placeholder="Search voices by name, accent, gender..."
+                      />
+                    </div>
+                    {!strictFilteredVoices.length && !!languageOnlyVoices.length && (
+                      <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                        No exact accent/gender match found. Showing language-matched voices.
+                      </div>
+                    )}
                     {catalog?.warning && (
                       <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
                         {catalog.warning}
                       </div>
                     )}
-                    <div className="grid gap-2 sm:grid-cols-2 max-h-[420px] overflow-y-auto pr-1">
-                      {visibleVoices.map((v) => (
+                    {visibleVoices.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                        No voices found for current filters/search. Try changing country, accent, gender, or search text.
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-2 max-h-[420px] overflow-y-auto pr-1">
+                        {visibleVoices.map((v) => (
                         <div key={v.id} className={cn(
                           "flex items-start gap-3 rounded-lg border p-3 text-left transition-all",
                           (selectedVoice?.id ?? voiceId) === v.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
@@ -412,8 +425,9 @@ const NewAgent = () => {
                             </button>
                           )}
                         </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </Card>
               )}
