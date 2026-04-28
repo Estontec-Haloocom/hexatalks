@@ -7,22 +7,72 @@ const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+const stripQuotes = (value: string | undefined) => {
+  if (!value) return value;
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+};
+
+const parseProjectRefFromUrl = (url: string) => {
+  try {
+    return new URL(url).hostname.split(".")[0] || "";
+  } catch {
+    return "";
+  }
+};
+
+const parseProjectRefFromAnonKey = (key: string) => {
+  try {
+    const payloadSegment = key.split(".")[1] || "";
+    const payload = JSON.parse(atob(payloadSegment.replace(/-/g, "+").replace(/_/g, "/")));
+    return String(payload?.ref || "");
+  } catch {
+    return "";
+  }
+};
+
+const normalizedUrl = stripQuotes(SUPABASE_URL);
+const normalizedKey = stripQuotes(SUPABASE_PUBLISHABLE_KEY);
+
+if (!normalizedUrl || !normalizedKey) {
   throw new Error(
     "Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (or VITE_SUPABASE_ANON_KEY).",
   );
 }
 
-if (SUPABASE_PUBLISHABLE_KEY.startsWith("sb_secret_")) {
+if (normalizedKey.startsWith("sb_secret_")) {
   throw new Error(
     "Invalid frontend Supabase key detected. Use the project anon/publishable key, not an sb_secret/service key.",
   );
 }
 
+const urlProjectRef = parseProjectRefFromUrl(normalizedUrl);
+const keyProjectRef = parseProjectRefFromAnonKey(normalizedKey);
+if (urlProjectRef && keyProjectRef && urlProjectRef !== keyProjectRef) {
+  throw new Error(
+    `Supabase URL/key mismatch in deployed app. URL ref "${urlProjectRef}" does not match key ref "${keyProjectRef}".`,
+  );
+}
+
+if (typeof window !== "undefined") {
+  (window as Window & { __SUPABASE_ENV_DEBUG__?: unknown }).__SUPABASE_ENV_DEBUG__ = {
+    urlProjectRef,
+    keyProjectRef,
+    hasUrl: Boolean(normalizedUrl),
+    hasKey: Boolean(normalizedKey),
+  };
+}
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(normalizedUrl, normalizedKey, {
   auth: {
     storage: localStorage,
     persistSession: true,
