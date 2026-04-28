@@ -24,6 +24,12 @@ const ULTRAVOX_FALLBACK_MAP: Record<string, string> = {
   leo: "Mark",
 };
 const ULTRAVOX_DEFAULT_VOICE = "Mark";
+const QUALITY_GUARDRAILS = `## Reliability Rules
+- Never invent facts, names, prices, policies, or availability.
+- If information is missing or unclear, ask a brief clarifying question before proceeding.
+- Repeat back critical details (name, phone, date/time, quantity) and get confirmation.
+- Keep responses short, human, and conversational unless user asks for more detail.
+- If uncertain, explicitly say you are not sure and offer the next best action.`;
 
 export type CallController = {
   stop: () => void;
@@ -60,7 +66,9 @@ export const startWebCall = async (
   catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
 
   const baseSystem = overrides?.systemPromptOverride ?? agent.system_prompt;
-  const systemPrompt = buildEnhancedSystemPrompt(baseSystem, blocks, agent.language, overrides?.orgPromptConfig);
+  const systemPrompt = [buildEnhancedSystemPrompt(baseSystem, blocks, agent.language, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
+    .filter(Boolean)
+    .join("\n\n");
   const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
 
   if (platform === "ultravox") {
@@ -75,7 +83,7 @@ export const startWebCall = async (
         systemPrompt: `${firstMessage ? `# Greeting\nStart by saying: "${firstMessage}"\n\n` : ""}${systemPrompt}`,
         voice: uvVoice,
         languageHint: (agent.language || "en-US").split("-")[0].toLowerCase(),
-        temperature: Number(agent.temperature ?? 0.5),
+        temperature: Number(agent.temperature ?? 0.25),
         agentId: agent.id,
       },
     });
@@ -133,8 +141,8 @@ export const startWebCall = async (
     model: {
       provider: "openai",
       model: agent.model || "gpt-4o-mini",
-      temperature: Number(agent.temperature ?? 0.6),
-      maxTokens: 180,
+      temperature: Number(agent.temperature ?? 0.2),
+      maxTokens: 140,
       messages: [{ role: "system", content: systemPrompt }],
     },
     voice: {
@@ -142,12 +150,12 @@ export const startWebCall = async (
       voiceId,
       ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
     } as any,
-    transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
-    startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
-    stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
+    transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
+    startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
+    stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },
     backgroundDenoisingEnabled: true,
-    silenceTimeoutSeconds: 30,
-    responseDelaySeconds: 0.2,
+    silenceTimeoutSeconds: 20,
+    responseDelaySeconds: 0.05,
   } as any);
 
   return {

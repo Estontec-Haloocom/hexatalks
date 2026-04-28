@@ -80,6 +80,12 @@ const xmlEscape = (value: string) =>
 
 const initialGreeting = (agent: any) =>
   xmlEscape((agent?.first_message || `Hello, this is ${agent?.name || "your assistant"}.`).trim());
+const QUALITY_GUARDRAILS = `## Reliability Rules
+- Never invent facts, names, prices, policies, or availability.
+- If information is missing or unclear, ask a brief clarifying question before proceeding.
+- Repeat back critical details (name, phone, date/time, quantity) and get confirmation.
+- Keep responses short, human, and conversational unless user asks for more detail.
+- If uncertain, explicitly say you are not sure and offer the next best action.`;
 
 
 const toTwilioWsUrl = (value: string) => {
@@ -146,7 +152,7 @@ serve(async (req) => {
     };
     const langName = LANG_NAMES[langShort] || fullLang;
     const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
-    const systemPromptLocalized = [agent.system_prompt || "", blocksText, orgPromptIdeText, languageDirective].filter(Boolean).join("\n\n");
+    const systemPromptLocalized = [agent.system_prompt || "", blocksText, orgPromptIdeText, languageDirective, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
 
     if (platform === "ultravox") {
       const ULTRAVOX_KEY = Deno.env.get("ULTRAVOX_API_KEY");
@@ -162,7 +168,7 @@ serve(async (req) => {
         model: "fixie-ai/ultravox",
         voice: uvVoice,
         languageHint: langShort,
-        temperature: Number(agent.temperature ?? 0.5),
+        temperature: Number(agent.temperature ?? 0.25),
         firstSpeaker: "FIRST_SPEAKER_AGENT",
         medium: { twilio: {} },
       };
@@ -241,8 +247,8 @@ serve(async (req) => {
             model: {
               provider: agent.model_provider || "openai",
               model: agent.model || "gpt-4o-mini",
-              temperature: Number(agent.temperature ?? 0.6),
-              maxTokens: 180,
+              temperature: Number(agent.temperature ?? 0.2),
+              maxTokens: 140,
               messages: [{ role: "system", content: systemPromptLocalized }],
             },
             voice: {
@@ -250,11 +256,11 @@ serve(async (req) => {
               voiceId,
               ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
             },
-            transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
-            startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
-            stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
-            responseDelaySeconds: 0.2,
-            silenceTimeoutSeconds: 30,
+            transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
+            startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
+            stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },
+            responseDelaySeconds: 0.05,
+            silenceTimeoutSeconds: 20,
           },
         }),
       });
@@ -294,8 +300,8 @@ serve(async (req) => {
           model: {
             provider: agent.model_provider || "openai",
             model: agent.model || "gpt-4o-mini",
-            temperature: Number(agent.temperature ?? 0.6),
-            maxTokens: 180,
+            temperature: Number(agent.temperature ?? 0.2),
+            maxTokens: 140,
             messages: [{ role: "system", content: systemPromptLocalized }],
           },
           voice: {
@@ -303,11 +309,11 @@ serve(async (req) => {
             voiceId,
             ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
           },
-          transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 220 },
-          startSpeakingPlan: { waitSeconds: 0.3, smartEndpointingEnabled: true },
-          stopSpeakingPlan: { numWords: 2, voiceSeconds: 0.2, backoffSeconds: 1 },
-          responseDelaySeconds: 0.2,
-          silenceTimeoutSeconds: 30,
+          transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
+          startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
+          stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },
+          responseDelaySeconds: 0.05,
+          silenceTimeoutSeconds: 20,
         },
       }),
     });

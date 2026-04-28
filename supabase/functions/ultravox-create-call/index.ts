@@ -12,6 +12,13 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const QUALITY_GUARDRAILS = `## Reliability Rules
+- Never invent facts, names, prices, policies, or availability.
+- If information is missing or unclear, ask a brief clarifying question before proceeding.
+- Repeat back critical details (name, phone, date/time, quantity) and get confirmation.
+- Keep responses short, human, and conversational unless user asks for more detail.
+- If uncertain, explicitly say you are not sure and offer the next best action.`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -35,7 +42,7 @@ serve(async (req) => {
       voice,                                // ultravox voice id (e.g. "Mark") — optional
       languageHint,                         // e.g. "en", "hi"
       model = "fixie-ai/ultravox",
-      temperature = 0.5,
+      temperature = 0.25,
       maxDurationSec = 600,
       medium = "web",                       // "web" or "twilio"
       twilioOutgoing,                       // for outbound twilio: { to: "+1..." }
@@ -44,11 +51,12 @@ serve(async (req) => {
     } = body ?? {};
 
     if (!systemPrompt) return json({ error: "systemPrompt required" }, 400);
+    const safeSystemPrompt = [systemPrompt, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
 
     const payload: Record<string, unknown> = {
-      systemPrompt,
+      systemPrompt: safeSystemPrompt,
       model,
-      temperature: Number(temperature) || 0.5,
+      temperature: Number(temperature) || 0.25,
       firstSpeaker,
       maxDuration: `${Math.max(30, Number(maxDurationSec) || 600)}s`,
       medium: medium === "twilio" ? { twilio: {} } : { webRtc: {} },
