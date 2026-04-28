@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Play, Building2, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Play, Pause, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,7 @@ const NewAgent = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: catalog } = useVoiceCatalog();
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { currentOrgId } = useOrg();
 
   const mappedCustomIndustries = useMemo(() => {
@@ -145,14 +146,48 @@ const NewAgent = () => {
   const selectedVoice: VoiceOption | undefined =
     visibleVoices.find((v) => v.id === voiceId) ?? visibleVoices[0];
 
+  useEffect(() => {
+    if (!voiceId && visibleVoices.length > 0) setVoiceId(visibleVoices[0].id);
+  }, [voiceId, visibleVoices]);
+
   const playPreview = (v: VoiceOption) => {
-    if (!v.previewUrl) return;
-    setPreviewing(v.id);
+    if (previewing === v.id && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+      previewAudioRef.current = null;
+      setPreviewing(null);
+      return;
+    }
+    if (!v.previewUrl) {
+      toast({ title: "Preview unavailable", description: `No preview clip available for ${v.label}.`, variant: "destructive" });
+      return;
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+    }
     const audio = new Audio(v.previewUrl);
-    audio.onended = () => setPreviewing(null);
-    audio.onerror = () => setPreviewing(null);
+    previewAudioRef.current = audio;
+    setPreviewing(v.id);
+    audio.onended = () => {
+      if (previewAudioRef.current === audio) previewAudioRef.current = null;
+      setPreviewing(null);
+    };
+    audio.onerror = () => {
+      if (previewAudioRef.current === audio) previewAudioRef.current = null;
+      setPreviewing(null);
+    };
     audio.play().catch(() => setPreviewing(null));
   };
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+    };
+  }, []);
 
   const loadCustomIndustries = async () => {
     if (!currentOrgId) {
@@ -665,15 +700,16 @@ const NewAgent = () => {
                               </div>
                             )}
                           </button>
-                          {v.previewUrl && (
-                            <button
-                              onClick={() => playPreview(v)}
-                              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground hover:opacity-90"
-                              aria-label="Preview voice"
-                            >
-                              {previewing === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
+                          <button
+                            onClick={() => playPreview(v)}
+                            className={cn(
+                              "grid h-8 w-8 shrink-0 place-items-center rounded-full text-primary-foreground hover:opacity-90",
+                              v.previewUrl ? "bg-primary" : "bg-muted",
+                            )}
+                            aria-label={previewing === v.id ? "Pause preview" : "Play preview"}
+                          >
+                            {previewing === v.id ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                          </button>
                         </div>
                         ))}
                       </div>
