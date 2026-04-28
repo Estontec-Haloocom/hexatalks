@@ -173,7 +173,9 @@ serve(async (req) => {
       if (!ud.joinUrl) throw new Error("Ultravox did not return a joinUrl");
 
       // Bridge Twilio outbound call to Ultravox via Media Streams
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">${initialGreeting(agent)}</Say><Pause length="1"/><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
+      // Ultravox should speak in the configured agent voice immediately.
+      // Do not prepend Twilio TTS greeting, otherwise callers hear a mismatched voice first.
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
       const tBody = new URLSearchParams({ To: cleanToNumber, From: tFrom, Twiml: twiml });
       const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
         method: "POST",
