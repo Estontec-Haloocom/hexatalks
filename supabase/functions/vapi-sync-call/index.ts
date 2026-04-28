@@ -12,6 +12,32 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const pickRecordingUrl = (data: any): string | null => {
+  const direct = [
+    data?.recordingUrl,
+    data?.stereoRecordingUrl,
+    data?.monoRecordingUrl,
+    data?.recording?.url,
+    data?.recording?.recordingUrl,
+    data?.artifact?.recordingUrl,
+    data?.artifacts?.recordingUrl,
+  ].find((v) => typeof v === "string" && v.length > 0);
+  return direct ?? null;
+};
+
+const normalizeTranscript = (data: any) => {
+  if (Array.isArray(data?.transcript)) return data.transcript;
+  if (Array.isArray(data?.messages)) {
+    return data.messages
+      .filter((m: any) => m?.message || m?.text)
+      .map((m: any) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        text: m.message ?? m.text ?? "",
+      }));
+  }
+  return data?.transcript ?? null;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -54,10 +80,12 @@ serve(async (req) => {
       undefined;
 
     const update: Record<string, unknown> = {
-      transcript: data?.transcript ?? null,
+      transcript: normalizeTranscript(data),
     };
     if (typeof durationSec === "number") update.duration_sec = durationSec;
     if (status) update.status = status;
+    const recordingUrl = pickRecordingUrl(data);
+    if (recordingUrl) update.recording_url = recordingUrl;
 
     const { error: upErr } = await supabase
       .from("calls")
@@ -65,7 +93,13 @@ serve(async (req) => {
       .eq("vapi_call_id", callId);
     if (upErr) return json({ error: upErr.message }, 400);
 
-    return json({ ok: true, status: update.status ?? null, duration_sec: update.duration_sec ?? null });
+    return json({
+      ok: true,
+      status: update.status ?? null,
+      duration_sec: update.duration_sec ?? null,
+      recording_url: update.recording_url ?? null,
+      has_transcript: Boolean(update.transcript),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return json({ error: msg }, 500);

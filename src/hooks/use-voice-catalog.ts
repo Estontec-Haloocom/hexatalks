@@ -21,6 +21,13 @@ const FALLBACK_LANGS: LanguageOption[] = [
   { id: "de-DE", label: "German" },
 ];
 
+const FALLBACK_ULTRAVOX_VOICES: VoiceOption[] = [
+  { id: "Mark", label: "Mark", description: "Calm, clear · English", provider: "ultravox", language: "en", gender: "Male", accent: "American" },
+  { id: "Jessica", label: "Jessica", description: "Warm, friendly · English", provider: "ultravox", language: "en", gender: "Female", accent: "American" },
+  { id: "Tanya-English", label: "Tanya", description: "Bright, youthful · English", provider: "ultravox", language: "en", gender: "Female", accent: "Indian" },
+  { id: "Aaron-English", label: "Aaron", description: "Deep, confident · English", provider: "ultravox", language: "en", gender: "Male", accent: "American" },
+];
+
 const fetchVapi = async (): Promise<CatalogResponse> => {
   const { data, error } = await supabase.functions.invoke("vapi-web-token", { body: { action: "config" } });
   if (error) return { voices: [], languages: [], warning: "Vapi config failed" };
@@ -68,16 +75,18 @@ export const useVoiceCatalog = () => {
     queryFn: async (): Promise<CatalogResponse> => {
       if (devOn) {
         const res = platform === "ultravox" ? await fetchUltravox() : await fetchVapi();
+        const fallbackVoices = platform === "ultravox" ? FALLBACK_ULTRAVOX_VOICES : [];
         return {
-          voices: res.voices,
+          voices: res.voices.length ? res.voices : fallbackVoices,
           languages: res.languages.length ? res.languages : FALLBACK_LANGS,
-          warning: res.warning,
+          warning: res.warning || (!res.voices.length && platform === "ultravox" ? "Ultravox returned no voices. Showing fallback list." : undefined),
         };
       }
       const [vapi, uv] = await Promise.all([fetchVapi(), fetchUltravox()]);
       const voices = dedupeBy([...vapi.voices, ...uv.voices], (v) => `${v.provider}:${v.id}`);
       const languages = dedupeBy([...vapi.languages, ...uv.languages, ...FALLBACK_LANGS], (l) => l.id);
-      return { voices, languages };
+      const warnings = [vapi.warning, uv.warning].filter(Boolean).join(" | ");
+      return { voices, languages, warning: warnings || undefined };
     },
     staleTime: 1000 * 60 * 10,
     retry: 1,

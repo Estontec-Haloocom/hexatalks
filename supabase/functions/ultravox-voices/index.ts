@@ -35,6 +35,12 @@ const FALLBACK_LANGUAGES = [
 
 const text = (...vs: any[]) => vs.find((v) => typeof v === "string" && v.trim())?.trim();
 
+const readItems = (data: any): any[] =>
+  Array.isArray(data?.results) ? data.results :
+  Array.isArray(data?.voices) ? data.voices :
+  Array.isArray(data?.items) ? data.items :
+  Array.isArray(data) ? data : [];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -42,20 +48,30 @@ serve(async (req) => {
     const KEY = Deno.env.get("ULTRAVOX_API_KEY");
     if (!KEY) return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Ultravox API key not configured." });
 
-    const r = await fetch("https://api.ultravox.ai/api/voices?pageSize=200", {
-      headers: { "X-API-Key": KEY },
-    });
-    if (!r.ok) {
-      const t = await r.text();
-      console.warn("ultravox voices fetch failed", r.status, t);
-      return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Could not fetch Ultravox voices." });
+    const allItems: any[] = [];
+    let pageToken: string | null = null;
+    for (let i = 0; i < 5; i++) {
+      const q = new URLSearchParams({ pageSize: "200" });
+      if (pageToken) q.set("pageToken", pageToken);
+      const r = await fetch(`https://api.ultravox.ai/api/voices?${q.toString()}`, {
+        headers: { "X-API-Key": KEY },
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        console.warn("ultravox voices fetch failed", r.status, t);
+        return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Could not fetch Ultravox voices." });
+      }
+      const data = await r.json();
+      allItems.push(...readItems(data));
+      pageToken = text(data?.nextPageToken, data?.next_page_token) ?? null;
+      if (!pageToken) break;
     }
-    const data = await r.json();
-    const items: any[] = Array.isArray(data?.results) ? data.results : Array.isArray(data?.voices) ? data.voices : Array.isArray(data) ? data : [];
+
+    const items: any[] = allItems;
 
     const voices = items
       .map((v: any) => {
-        const id = text(v.voiceId, v.name, v.id);
+        const id = text(v.voiceId, v.voiceID, v.voice_id, v.slug, v.name, v.id);
         const label = text(v.name, v.voiceId, v.id) || "Voice";
         const lang = text(v.language, v.languageCode, v.locale);
         return {
@@ -82,6 +98,7 @@ serve(async (req) => {
     return json({
       voices: voices.length ? voices : FALLBACK_VOICES,
       languages: langMap.size ? Array.from(langMap.values()) : FALLBACK_LANGUAGES,
+      warning: voices.length ? undefined : "Using fallback Ultravox voices.",
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";

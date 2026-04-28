@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Download, Search, Smile, Frown, Meh, PlayCircle, Phone, Clock, TrendingUp, MessageSquare } from "lucide-react";
+import { Download, Search, Smile, Frown, Meh, PlayCircle, Phone, Clock, TrendingUp, MessageSquare, Trash2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { useOrg } from "@/contexts/OrgContext";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 type Call = {
   id: string;
@@ -70,22 +71,31 @@ const Transcriptions = () => {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "positive" | "neutral" | "negative">("all");
   const { currentOrgId } = useOrg();
+  const { toast } = useToast();
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadCalls = async () => {
+    setLoading(true);
+    if (!currentOrgId) { setCalls([]); setAgents({}); setLoading(false); return; }
+    const [{ data: callsData }, { data: agentsData }] = await Promise.all([
+      supabase.from("calls").select("*").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
+      supabase.from("agents").select("id, name").eq("org_id", currentOrgId),
+    ]);
+    setCalls((callsData as Call[]) ?? []);
+    const map: Record<string, string> = {};
+    (agentsData ?? []).forEach((a: any) => { map[a.id] = a.name; });
+    setAgents(map);
+    if (callsData && callsData.length) setSelected((prev) => {
+      if (prev) return (callsData as Call[]).find((c) => c.id === prev.id) ?? (callsData[0] as Call);
+      return callsData[0] as Call;
+    });
+    setLoading(false);
+  };
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      if (!currentOrgId) { setCalls([]); setAgents({}); setLoading(false); return; }
-      const [{ data: callsData }, { data: agentsData }] = await Promise.all([
-        supabase.from("calls").select("*").eq("org_id", currentOrgId).order("created_at", { ascending: false }),
-        supabase.from("agents").select("id, name").eq("org_id", currentOrgId),
-      ]);
-      setCalls((callsData as Call[]) ?? []);
-      const map: Record<string, string> = {};
-      (agentsData ?? []).forEach((a: any) => { map[a.id] = a.name; });
-      setAgents(map);
-      if (callsData && callsData.length) setSelected(callsData[0] as Call);
-      setLoading(false);
-    })();
+    loadCalls();
+    // eslint-disable-next-line
   }, [currentOrgId]);
 
   const enriched = useMemo(() => {
@@ -140,6 +150,38 @@ const Transcriptions = () => {
     a.download = `transcript-${c.id}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const syncCall = async (c: Call) => {
+    if (!c.vapi_call_id) {
+      toast({ title: "No sync source", description: "This call does not have a provider call id.", variant: "destructive" });
+      return;
+    }
+    setSyncingId(c.id);
+    const { data, error } = await supabase.functions.invoke("vapi-sync-call", {
+      body: { callId: c.vapi_call_id },
+    });
+    setSyncingId(null);
+    if (error || data?.error) {
+      toast({ title: "Sync failed", description: error?.message || data?.error, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Call synced" });
+    await loadCalls();
+  };
+
+  const deleteRecording = async (c: Call) => {
+    if (!confirm("Delete this recording/transcript entry?")) return;
+    setDeletingId(c.id);
+    const { error } = await supabase.from("calls").delete().eq("id", c.id);
+    setDeletingId(null);
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Recording deleted" });
+    if (selected?.id === c.id) setSelected(null);
+    await loadCalls();
   };
 
   const SentimentIcon = ({ label }: { label: "positive" | "neutral" | "negative" }) => {
@@ -278,6 +320,10 @@ const Transcriptions = () => {
                         <span className="capitalize">{scoreSentiment(transcriptToText(selected.transcript)).label}</span>
                       </div>
                       <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => syncCall(selected)} disabled={syncingId === selected.id}>
+                          <RefreshCw className={cn("h-3.5 w-3.5", syncingId === selected.id && "animate-spin")} />
+                          Sync
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => downloadTranscript(selected as any)}>
                           <Download className="h-3.5 w-3.5" /> Transcript
                         </Button>
@@ -286,6 +332,15 @@ const Transcriptions = () => {
                             <Download className="h-3.5 w-3.5" /> Recording
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteRecording(selected)}
+                          disabled={deletingId === selected.id}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {deletingId === selected.id ? "Deleting..." : "Delete"}
+                        </Button>
                       </div>
                     </div>
                     {selected.recording_url && (

@@ -32,6 +32,7 @@ const Organisation = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [deletingOrgId, setDeletingOrgId] = useState<string | null>(null);
 
   const [members, setMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -136,6 +137,27 @@ const Organisation = () => {
     loadMembers();
   };
 
+  const deleteOrg = async (orgId: string, orgName: string, isPersonal: boolean) => {
+    if (isPersonal) {
+      toast({ title: "Cannot delete personal organisation", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Delete organisation "${orgName}"? This will remove all scoped data in this org.`)) return;
+    setDeletingOrgId(orgId);
+    const { error } = await supabase.from("organizations").delete().eq("id", orgId);
+    setDeletingOrgId(null);
+    if (error) {
+      toast({ title: "Could not delete organisation", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Organisation deleted" });
+    await refresh();
+    if (currentOrg?.id === orgId && orgs.length > 1) {
+      const next = orgs.find((o) => o.id !== orgId);
+      if (next) await switchOrg(next.id);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -170,6 +192,23 @@ const Organisation = () => {
                         <Badge variant="secondary" className="text-[10px]">{o.role}</Badge>
                         {o.is_personal && <Badge variant="outline" className="text-[10px]">Personal</Badge>}
                       </div>
+                      {(o.role === "owner" || o.role === "admin") && !o.is_personal && (
+                        <div className="mt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              deleteOrg(o.id, o.name, o.is_personal);
+                            }}
+                            disabled={deletingOrgId === o.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {deletingOrgId === o.id ? "Deleting..." : "Delete"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </button>

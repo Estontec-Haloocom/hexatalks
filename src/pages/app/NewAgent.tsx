@@ -50,6 +50,7 @@ const tokenIncludes = (haystack: string | undefined, needle: string) =>
 
 const NewAgent = () => {
   const [step, setStep] = useState(0);
+  const [describeStep, setDescribeStep] = useState<"details" | "prompt">("details");
   const [industry, setIndustry] = useState<string>("");
   const [businessName, setBusinessName] = useState("");
   const [name, setName] = useState("");
@@ -220,72 +221,64 @@ const NewAgent = () => {
                 <Card className="p-5 sm:p-8">
                   <h2 className="font-display text-2xl tracking-tight">Describe your business</h2>
                   <p className="mt-1 text-sm text-muted-foreground">More detail = sharper agent. Country & tone are used to write a precise prompt.</p>
-                  <div className="mt-5 space-y-4 sm:mt-6">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label>Business name</Label>
-                        <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Bluebird Dental" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Agent name</Label>
-                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${ind?.name} Receptionist`} />
-                      </div>
+                  <div className="mt-5 sm:hidden">
+                    <div className="mb-4 grid grid-cols-2 gap-2">
+                      <Button variant={describeStep === "details" ? "default" : "outline"} onClick={() => setDescribeStep("details")}>Business</Button>
+                      <Button variant={describeStep === "prompt" ? "default" : "outline"} onClick={() => setDescribeStep("prompt")}>Prompt</Button>
                     </div>
-
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="space-y-1.5">
-                        <Label>Country / market</Label>
-                        <select value={country} onChange={(e) => setCountry(e.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                          {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                        </select>
+                    {describeStep === "details" ? (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <Label>Business name</Label>
+                          <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Bluebird Dental" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Agent name</Label>
+                          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${ind?.name} Receptionist`} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Country / market</Label>
+                          <select value={country} onChange={(e) => setCountry(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Accent / dialect</Label>
+                          <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Voice gender</Label>
+                          <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Top use cases</Label>
+                          <Input value={useCases} onChange={(e) => setUseCases(e.target.value)} placeholder="Book appointments, answer pricing, qualify leads" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Business description</Label>
+                          <Textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={`We run a ${ind?.name.toLowerCase()} business. Hours, services, what callers usually ask…`} />
+                        </div>
+                        <Button className="w-full" variant="outline" onClick={() => setDescribeStep("prompt")}>Continue to prompt</Button>
                       </div>
-                      <div className="space-y-1.5">
-                        <Label>Accent / dialect</Label>
-                        <select value={accent} onChange={(e) => setAccent(e.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                          {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Voice gender</Label>
-                        <select value={gender} onChange={(e) => setGender(e.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                          {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label>Tone</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {TONES.map((t) => (
-                          <button key={t} onClick={() => setTone(t)} type="button"
-                            className={cn("rounded-full border px-3 py-1.5 text-xs transition-colors",
-                              tone === t ? "border-accent bg-accent-soft" : "border-border hover:bg-surface")}>
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label>Top use cases <span className="text-muted-foreground">(comma separated)</span></Label>
-                      <Input value={useCases} onChange={(e) => setUseCases(e.target.value)}
-                        placeholder="Book appointments, answer pricing, qualify leads" />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label>Business description</Label>
-                      <Textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)}
-                        placeholder={`We run a ${ind?.name.toLowerCase()} business. Hours, services, what callers usually ask…`} />
-                    </div>
-
-                    <Button onClick={generate} disabled={generating || !description} variant="outline" className="w-full">
-                      {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Sparkles className="h-4 w-4" /> Generate prompt with AI</>}
-                    </Button>
-                    {systemPrompt && (
-                      <>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <Label>Tone</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {TONES.map((t) => (
+                              <button key={t} onClick={() => setTone(t)} type="button" className={cn("rounded-full border px-3 py-1.5 text-xs transition-colors", tone === t ? "border-accent bg-accent-soft" : "border-border hover:bg-surface")}>
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <Button onClick={generate} disabled={generating || !description} variant="outline" className="w-full">
+                          {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Sparkles className="h-4 w-4" /> Generate prompt with AI</>}
+                        </Button>
                         <div className="space-y-1.5">
                           <Label>First message</Label>
                           <Textarea rows={2} value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} />
@@ -294,8 +287,72 @@ const NewAgent = () => {
                           <Label>System prompt</Label>
                           <Textarea rows={10} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} className="font-mono text-xs" />
                         </div>
-                      </>
+                      </div>
                     )}
+                  </div>
+
+                  <div className="mt-5 hidden sm:grid sm:grid-cols-2 sm:gap-4">
+                    <Card className="space-y-4 p-4">
+                      <div className="space-y-1.5">
+                        <Label>Business name</Label>
+                        <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Bluebird Dental" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Agent name</Label>
+                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${ind?.name} Receptionist`} />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label>Country / market</Label>
+                          <select value={country} onChange={(e) => setCountry(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Accent / dialect</Label>
+                          <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Voice gender</Label>
+                        <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                          {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Top use cases</Label>
+                        <Input value={useCases} onChange={(e) => setUseCases(e.target.value)} placeholder="Book appointments, answer pricing, qualify leads" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Business description</Label>
+                        <Textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={`We run a ${ind?.name.toLowerCase()} business. Hours, services, what callers usually ask…`} />
+                      </div>
+                    </Card>
+                    <Card className="space-y-4 p-4">
+                      <div className="space-y-1.5">
+                        <Label>Tone</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {TONES.map((t) => (
+                            <button key={t} onClick={() => setTone(t)} type="button" className={cn("rounded-full border px-3 py-1.5 text-xs transition-colors", tone === t ? "border-accent bg-accent-soft" : "border-border hover:bg-surface")}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <Button onClick={generate} disabled={generating || !description} variant="outline" className="w-full">
+                        {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Sparkles className="h-4 w-4" /> Generate prompt with AI</>}
+                      </Button>
+                      <div className="space-y-1.5">
+                        <Label>First message</Label>
+                        <Textarea rows={2} value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>System prompt</Label>
+                        <Textarea rows={10} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} className="font-mono text-xs" />
+                      </div>
+                    </Card>
                   </div>
                 </Card>
               )}
@@ -324,6 +381,11 @@ const NewAgent = () => {
                       <Label>Character voice</Label>
                       <span className="text-xs text-muted-foreground">{visibleVoices.length} match{visibleVoices.length === 1 ? "" : "es"}</span>
                     </div>
+                    {catalog?.warning && (
+                      <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                        {catalog.warning}
+                      </div>
+                    )}
                     <div className="grid gap-2 sm:grid-cols-2 max-h-[420px] overflow-y-auto pr-1">
                       {visibleVoices.map((v) => (
                         <div key={v.id} className={cn(

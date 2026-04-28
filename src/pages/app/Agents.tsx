@@ -1,28 +1,49 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Plus, Mic } from "lucide-react";
+import { Bot, Plus, Mic, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { useOrg } from "@/contexts/OrgContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { INDUSTRIES } from "@/lib/industries";
+import { useToast } from "@/hooks/use-toast";
 
 type Agent = { id: string; name: string; industry: string; created_at: string; first_message: string };
 
 const Agents = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { currentOrgId } = useOrg();
+  const { toast } = useToast();
 
-  useEffect(() => {
+  const loadAgents = async () => {
     if (!currentOrgId) { setAgents([]); setLoading(false); return; }
     setLoading(true);
-    supabase.from("agents").select("id,name,industry,created_at,first_message").eq("org_id", currentOrgId).order("created_at", { ascending: false }).then(({ data }) => {
-      setAgents((data as Agent[]) ?? []);
-      setLoading(false);
-    });
-  }, [currentOrgId]);
+    const { data } = await supabase
+      .from("agents")
+      .select("id,name,industry,created_at,first_message")
+      .eq("org_id", currentOrgId)
+      .order("created_at", { ascending: false });
+    setAgents((data as Agent[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadAgents(); /* eslint-disable-next-line */ }, [currentOrgId]);
+
+  const deleteAgent = async (id: string, name: string) => {
+    if (!confirm(`Delete agent "${name}"? This action cannot be undone.`)) return;
+    setDeletingId(id);
+    const { error } = await supabase.from("agents").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) {
+      toast({ title: "Could not delete agent", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Agent deleted" });
+    loadAgents();
+  };
 
   return (
     <>
@@ -45,8 +66,8 @@ const Agents = () => {
               const ind = INDUSTRIES.find((i) => i.id === a.industry);
               const Icon = ind?.icon ?? Bot;
               return (
-                <Link key={a.id} to={`/app/agents/${a.id}`}>
-                  <Card className="p-6 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-elev)]">
+                <Card key={a.id} className="p-6 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-elev)]">
+                  <Link to={`/app/agents/${a.id}`}>
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground"><Icon className="h-4 w-4" /></div>
                       <div className="min-w-0">
@@ -55,8 +76,19 @@ const Agents = () => {
                       </div>
                     </div>
                     <p className="mt-4 line-clamp-2 text-sm text-muted-foreground">"{a.first_message}"</p>
-                  </Card>
-                </Link>
+                  </Link>
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteAgent(a.id, a.name)}
+                      disabled={deletingId === a.id}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deletingId === a.id ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                </Card>
               );
             })}
           </div>
