@@ -209,6 +209,7 @@ const Feedback = () => {
         systemPromptOverride: buildFeedbackSystemPrompt(),
         firstMessageOverride: firstMessage,
         orgPromptConfig,
+        devSettings,
       });
       callRef.current = ctrl;
       ctrl.on("status", (s) => setCallStatus(s));

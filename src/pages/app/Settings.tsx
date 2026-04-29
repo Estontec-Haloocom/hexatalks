@@ -238,6 +238,43 @@ const Settings = () => {
                 )}
               </div>
 
+              <div className="rounded-lg border border-border p-4">
+                <div className="mb-4">
+                  <h4 className="font-medium">Custom API Keys</h4>
+                  <p className="text-xs text-muted-foreground">Override global platform keys with your own. When developer mode is off, global keys will be used.</p>
+                </div>
+                
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Vapi Public Key</Label>
+                    <Input 
+                      type="password" 
+                      value={settings.vapi_public_key || ""} 
+                      onChange={(e) => update({ vapi_public_key: e.target.value })} 
+                      placeholder="pk_..." 
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Vapi Private Key</Label>
+                    <Input 
+                      type="password" 
+                      value={settings.vapi_private_key || ""} 
+                      onChange={(e) => update({ vapi_private_key: e.target.value })} 
+                      placeholder="sk_..." 
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:col-span-2">
+                    <Label>Ultravox API Key</Label>
+                    <Input 
+                      type="password" 
+                      value={settings.ultravox_api_key || ""} 
+                      onChange={(e) => update({ ultravox_api_key: e.target.value })} 
+                      placeholder="uv_..." 
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <div className="mb-6 rounded-lg border border-border p-4">
                   <div className="flex items-start justify-between gap-3">

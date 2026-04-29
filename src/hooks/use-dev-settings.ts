@@ -11,6 +11,9 @@ export type DevSettings = {
   telephony_provider: TelephonyProvider;
   fallback_voice_platform: VoicePlatform;
   failover_enabled: boolean;
+  vapi_public_key?: string;
+  vapi_private_key?: string;
+  ultravox_api_key?: string;
 };
 
 const DEFAULTS: DevSettings = {
@@ -19,6 +22,9 @@ const DEFAULTS: DevSettings = {
   telephony_provider: "twilio",
   fallback_voice_platform: "vapi",
   failover_enabled: false,
+  vapi_public_key: "",
+  vapi_private_key: "",
+  ultravox_api_key: "",
 };
 
 export const useDevSettings = () => {
@@ -31,7 +37,7 @@ export const useDevSettings = () => {
     setLoading(true);
     const { data } = await supabase
       .from("dev_settings")
-      .select("voice_platform,dev_mode_enabled,telephony_provider,fallback_voice_platform,failover_enabled")
+      .select("voice_platform,dev_mode_enabled,telephony_provider,fallback_voice_platform,failover_enabled,vapi_public_key,vapi_private_key,ultravox_api_key")
       .eq("user_id", user.id)
       .maybeSingle();
     setSettings({
@@ -40,6 +46,9 @@ export const useDevSettings = () => {
       telephony_provider: ((data?.telephony_provider as TelephonyProvider) ?? "twilio"),
       fallback_voice_platform: ((data?.fallback_voice_platform as VoicePlatform) ?? "vapi"),
       failover_enabled: Boolean(data?.failover_enabled),
+      vapi_public_key: data?.vapi_public_key ?? "",
+      vapi_private_key: data?.vapi_private_key ?? "",
+      ultravox_api_key: data?.ultravox_api_key ?? "",
     });
     setLoading(false);
   };
@@ -58,6 +67,9 @@ export const useDevSettings = () => {
         telephony_provider: next.telephony_provider,
         fallback_voice_platform: next.fallback_voice_platform,
         failover_enabled: next.failover_enabled,
+        vapi_public_key: next.vapi_public_key,
+        vapi_private_key: next.vapi_private_key,
+        ultravox_api_key: next.ultravox_api_key,
       },
       { onConflict: "user_id" },
     );

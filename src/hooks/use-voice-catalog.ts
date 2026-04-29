@@ -40,8 +40,13 @@ const FALLBACK_VAPI_VOICES: VoiceOption[] = [
   { id: "adam", label: "Adam", description: "Clear and confident voice", provider: "11labs", language: "en-US", gender: "Male", accent: "American" },
 ];
 
-const fetchVapi = async (): Promise<CatalogResponse> => {
-  const { data, error } = await supabase.functions.invoke("vapi-web-token", { body: { action: "config" } });
+const fetchVapi = async (settings?: any): Promise<CatalogResponse> => {
+  const { data, error } = await supabase.functions.invoke("vapi-web-token", { 
+    body: { 
+      action: "config",
+      vapi_private_key: settings?.dev_mode_enabled ? settings?.vapi_private_key : undefined
+    } 
+  });
   if (error) return { voices: [], languages: [], warning: "Voice library config failed" };
   return {
     voices: Array.isArray(data?.voices) ? data.voices : [],
@@ -85,7 +90,7 @@ export const useVoiceCatalog = () => {
   const CACHE_KEY = `voice-catalog-${devOn ? platform : "all"}`;
 
   return useQuery({
-    queryKey: [CACHE_KEY],
+    queryKey: [CACHE_KEY, settings?.vapi_private_key],
     initialData: () => {
       // Instant load from localStorage
       try {
@@ -107,7 +112,7 @@ export const useVoiceCatalog = () => {
     queryFn: async (): Promise<CatalogResponse> => {
       let finalRes: CatalogResponse;
       if (devOn) {
-        const res = platform === "ultravox" ? await fetchUltravox() : await fetchVapi();
+        const res = platform === "ultravox" ? await fetchUltravox() : await fetchVapi(settings);
         const fallbackVoices = platform === "ultravox" ? FALLBACK_ULTRAVOX_VOICES : FALLBACK_VAPI_VOICES;
         finalRes = {
           voices: res.voices.length ? res.voices : fallbackVoices,
@@ -119,7 +124,7 @@ export const useVoiceCatalog = () => {
               : undefined),
         };
       } else {
-        const [vapi, uv] = await Promise.all([fetchVapi(), fetchUltravox()]);
+        const [vapi, uv] = await Promise.all([fetchVapi(settings), fetchUltravox()]);
         const voices = dedupeBy(
           [...vapi.voices, ...uv.voices, ...FALLBACK_VAPI_VOICES, ...FALLBACK_ULTRAVOX_VOICES],
           (v) => `${v.provider}:${v.id}`,

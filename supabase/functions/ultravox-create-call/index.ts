@@ -23,18 +23,6 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const KEY = Deno.env.get("ULTRAVOX_API_KEY");
-    if (!KEY) return json({ error: "ULTRAVOX_API_KEY not configured" }, 400);
-
-    const auth = req.headers.get("Authorization");
-    if (!auth) return json({ error: "Not authenticated" }, 401);
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: auth } } },
-    );
-
     const body = await req.json().catch(() => ({}));
     const {
       systemPrompt,
@@ -48,7 +36,20 @@ serve(async (req) => {
       twilioOutgoing,                       // for outbound twilio: { to: "+1..." }
       agentId,
       callerNumber,
+      ultravox_api_key,
     } = body ?? {};
+
+    const KEY = ultravox_api_key || Deno.env.get("ULTRAVOX_API_KEY");
+    if (!KEY) return json({ error: "ULTRAVOX_API_KEY not configured" }, 400);
+
+    const auth = req.headers.get("Authorization");
+    if (!auth) return json({ error: "Not authenticated" }, 401);
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } } },
+    );
 
     if (!systemPrompt) return json({ error: "systemPrompt required" }, 400);
     const safeSystemPrompt = [systemPrompt, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");

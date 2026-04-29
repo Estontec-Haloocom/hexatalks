@@ -58,11 +58,12 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const VAPI_PRIVATE_KEY = Deno.env.get("VAPI_PRIVATE_KEY") || Deno.env.get("VAPI_API_KEY") || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
-    const VAPI_PUBLIC_KEY = Deno.env.get("VAPI_PUBLIC_KEY");
-
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const action = body?.action ?? "token";
+    const userVapiPrivateKey = body?.vapi_private_key;
+
+    const VAPI_PRIVATE_KEY = userVapiPrivateKey || Deno.env.get("VAPI_PRIVATE_KEY") || Deno.env.get("VAPI_API_KEY") || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
+    const VAPI_PUBLIC_KEY = Deno.env.get("VAPI_PUBLIC_KEY");
 
     if (action === "config") {
       if (!VAPI_PRIVATE_KEY) return json({ voices: fallbackVoices, languages: fallbackLanguages });
@@ -128,31 +129,33 @@ serve(async (req) => {
       });
     }
 
-    if (VAPI_PUBLIC_KEY) return json({ publicKey: VAPI_PUBLIC_KEY });
+    if (VAPI_PUBLIC_KEY && !userVapiPrivateKey) return json({ publicKey: VAPI_PUBLIC_KEY });
 
     if (!VAPI_PRIVATE_KEY) return json({ error: "Vapi key is not configured." });
 
-    if (cachedToken) {
+    if (cachedToken && !userVapiPrivateKey) {
       return json({ publicKey: cachedToken });
     }
 
     // Try to find an existing global token to avoid creating a new one on every call
-    try {
-      const existingTokensResp = await fetch("https://api.vapi.ai/token", {
-        headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
-      });
-      if (existingTokensResp.ok) {
-        const tokens = await existingTokensResp.json();
-        if (Array.isArray(tokens)) {
-          const globalToken = tokens.find((t: any) => t.name === "hexatalks-web-global");
-          if (globalToken && (globalToken.value || globalToken.token || globalToken.publicKey)) {
-            cachedToken = globalToken.value || globalToken.token || globalToken.publicKey;
-            return json({ publicKey: cachedToken });
+    if (!userVapiPrivateKey) {
+      try {
+        const existingTokensResp = await fetch("https://api.vapi.ai/token", {
+          headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
+        });
+        if (existingTokensResp.ok) {
+          const tokens = await existingTokensResp.json();
+          if (Array.isArray(tokens)) {
+            const globalToken = tokens.find((t: any) => t.name === "hexatalks-web-global");
+            if (globalToken && (globalToken.value || globalToken.token || globalToken.publicKey)) {
+              cachedToken = globalToken.value || globalToken.token || globalToken.publicKey;
+              return json({ publicKey: cachedToken });
+            }
           }
         }
+      } catch (e) {
+        console.warn("Could not list existing tokens", e);
       }
-    } catch (e) {
-      console.warn("Could not list existing tokens", e);
     }
 
     const tokenResp = await fetch("https://api.vapi.ai/token", {
@@ -163,7 +166,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         tag: "public",
-        name: `hexatalks-web-global`,
+        name: userVapiPrivateKey ? `hexatalks-web-${crypto.randomUUID().slice(0, 8)}` : `hexatalks-web-global`,
       }),
     });
 
@@ -182,7 +185,9 @@ serve(async (req) => {
     const publicKey = tokenData?.value || tokenData?.token || tokenData?.publicKey;
     if (!publicKey) throw new Error("Vapi did not return a public token");
 
-    cachedToken = publicKey;
+    if (!userVapiPrivateKey) {
+      cachedToken = publicKey;
+    }
     return json({ publicKey });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

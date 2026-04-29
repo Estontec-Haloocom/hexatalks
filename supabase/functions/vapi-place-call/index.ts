@@ -121,7 +121,9 @@ serve(async (req) => {
 
     // Read user dev settings
     const { data: settings } = await supabase
-      .from("dev_settings").select("voice_platform").maybeSingle();
+      .from("dev_settings").select("voice_platform,dev_mode_enabled,vapi_private_key,ultravox_api_key").maybeSingle();
+
+    const useCustomKeys = settings?.dev_mode_enabled;
     // Routing rule:
     // - If developer selected Ultravox -> use Ultravox
     // - If agent voice provider is Ultravox -> use Ultravox
@@ -162,7 +164,7 @@ serve(async (req) => {
     const systemPromptLocalized = [agent.system_prompt || "", blocksText, orgPromptIdeText, languageDirective, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
 
     if (platform === "ultravox") {
-      const ULTRAVOX_KEY = Deno.env.get("ULTRAVOX_API_KEY");
+      const ULTRAVOX_KEY = (useCustomKeys ? settings?.ultravox_api_key : undefined) || Deno.env.get("ULTRAVOX_API_KEY");
       if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
       const isUltravoxVoice = agent.voice_provider === "ultravox";
       const uvVoice = isUltravoxVoice
@@ -234,7 +236,7 @@ serve(async (req) => {
       });
     }
 
-    const VAPI_KEY = Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
+    const VAPI_KEY = (useCustomKeys ? settings?.vapi_private_key : undefined) || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
     if (!VAPI_KEY) throw new Error("VAPI private key missing. Set VAPI_PRIVATE_API in Supabase secrets.");
     if (looksLikePublicVapiKey(VAPI_KEY)) {
       throw new Error("Invalid Vapi key for outbound calls. Set VAPI_PRIVATE_API to your private server key (not public/web key).");

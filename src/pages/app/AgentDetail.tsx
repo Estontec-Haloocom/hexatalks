@@ -271,7 +271,7 @@ const AgentDetail = () => {
     setCallStatus("connecting");
     setTranscript([]);
     try {
-      const ctrl = startWebCall(devSettings.voice_platform, agent, blocks, { orgPromptConfig });
+      const ctrl = startWebCall(devSettings.voice_platform, agent, blocks, { orgPromptConfig, devSettings });
       callRef.current = ctrl;
       ctrl.on("status", (s) => setCallStatus(s));
       ctrl.on("volume", (v) => setVolume(v));

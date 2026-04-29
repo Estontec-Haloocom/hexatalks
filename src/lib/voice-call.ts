@@ -57,7 +57,7 @@ export const startWebCall = (
   platform: VoicePlatform,
   agent: AgentLike,
   blocks: PromptBlock[],
-  overrides?: { systemPromptOverride?: string; firstMessageOverride?: string; orgPromptConfig?: OrgPromptConfigForBuild | null },
+  overrides?: { systemPromptOverride?: string; firstMessageOverride?: string; orgPromptConfig?: OrgPromptConfigForBuild | null; devSettings?: any },
 ): CallController => {
   const listeners: Listeners = {};
   const missedEvents: { event: string; payload: any }[] = [];
@@ -95,6 +95,8 @@ export const startWebCall = (
                            ? platform : platform;
 
     const routeToUltravox = actualPlatform === "ultravox" || agent.voice_provider === "ultravox";
+    const devSettings = overrides?.devSettings;
+    const useCustomKeys = devSettings?.dev_mode_enabled;
 
     if (routeToUltravox) {
       const isUltravoxVoice = agent.voice_provider === "ultravox";
@@ -109,6 +111,7 @@ export const startWebCall = (
           languageHint: (agent.language || "en-US").split("-")[0].toLowerCase(),
           temperature: Number(agent.temperature ?? 0.25),
           agentId: agent.id,
+          ultravox_api_key: useCustomKeys ? devSettings?.ultravox_api_key : undefined,
         },
       });
       if (error) throw error;
@@ -133,12 +136,21 @@ export const startWebCall = (
       (session as any).joinCall?.(data.joinUrl);
 
     } else {
-      const { data, error } = await supabase.functions.invoke("vapi-web-token");
-      if (error) throw error;
-      if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
+      let publicKey = useCustomKeys ? devSettings?.vapi_public_key : null;
+
+      if (!publicKey) {
+        const { data, error } = await supabase.functions.invoke("vapi-web-token", {
+          body: {
+            vapi_private_key: useCustomKeys ? devSettings?.vapi_private_key : undefined,
+          }
+        });
+        if (error) throw error;
+        if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
+        publicKey = data.publicKey;
+      }
       if (isStopped) return;
 
-      const vapi = new Vapi(data.publicKey);
+      const vapi = new Vapi(publicKey!);
       activeSessionOrVapi = vapi;
       vapi.on("call-start", () => emit("status", "active"));
       vapi.on("call-end", () => { emit("status", "ended"); emit("volume", 0); });
