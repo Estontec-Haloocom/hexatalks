@@ -12,6 +12,7 @@ const fallbackVoices = [
   { id: "mark", label: "Mark", description: "Calm, reassuring", provider: "11labs", language: "en-US" },
   { id: "ava", label: "Ava", description: "Bright, youthful", provider: "11labs", language: "en-US" },
   { id: "leo", label: "Leo", description: "Deep, authoritative", provider: "11labs", language: "en-US" },
+  { id: "zeina", label: "Zeina", description: "Clear, professional", provider: "11labs", language: "ar-SA" },
 ];
 
 const fallbackLanguages = [
@@ -25,6 +26,7 @@ const fallbackLanguages = [
   { id: "it-IT", label: "Italian" },
   { id: "ja-JP", label: "Japanese" },
   { id: "zh-CN", label: "Mandarin" },
+  { id: "ar-SA", label: "Arabic" },
 ];
 
 const json = (body: Record<string, unknown>, status = 200) =>

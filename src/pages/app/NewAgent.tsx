@@ -56,6 +56,8 @@ const COUNTRIES = [
   { id: "ES", label: "🇪🇸 Spain" },
   { id: "BR", label: "🇧🇷 Brazil" },
   { id: "MX", label: "🇲🇽 Mexico" },
+  { id: "AE", label: "🇦🇪 UAE" },
+  { id: "SA", label: "🇸🇦 Saudi Arabia" },
 ];
 
 const COUNTRY_ACCENT_MAP: Record<string, string[]> = {
@@ -69,8 +71,10 @@ const COUNTRY_ACCENT_MAP: Record<string, string[]> = {
   DE: ["German", "Neutral"],
   FR: ["French", "Neutral"],
   ES: ["Spanish", "Neutral"],
-  BR: ["Neutral"],
+  BR: ["Brazilian", "Neutral"],
   MX: ["Mexican", "Neutral"],
+  AE: ["Arabic", "Middle Eastern", "Neutral"],
+  SA: ["Arabic", "Middle Eastern", "Neutral"],
 };
 
 const GENDERS = ["Female", "Male", "Neutral"];

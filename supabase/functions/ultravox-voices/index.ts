@@ -18,6 +18,7 @@ const FALLBACK_VOICES = [
   { id: "Aaron-English",  label: "Aaron",          description: "Deep, confident · English", provider: "ultravox", language: "en", gender: "Male",   accent: "American" },
   { id: "Riya-Rao",       label: "Riya",           description: "Friendly · Hindi/English",  provider: "ultravox", language: "hi", gender: "Female", accent: "Indian" },
   { id: "Anjali",         label: "Anjali",         description: "Soft, professional · Hindi",provider: "ultravox", language: "hi", gender: "Female", accent: "Indian" },
+  { id: "Tariq",          label: "Tariq",          description: "Clear, professional · Arabic", provider: "ultravox", language: "ar", gender: "Male", accent: "Middle Eastern" },
 ];
 
 const FALLBACK_LANGUAGES = [
@@ -31,6 +32,7 @@ const FALLBACK_LANGUAGES = [
   { id: "it-IT", label: "Italian" },
   { id: "ja-JP", label: "Japanese" },
   { id: "zh-CN", label: "Mandarin" },
+  { id: "ar-SA", label: "Arabic" },
 ];
 
 const text = (...vs: any[]) => vs.find((v) => typeof v === "string" && v.trim())?.trim();
