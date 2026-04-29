@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { INDUSTRIES } from "@/lib/industries";
@@ -104,6 +105,10 @@ const AgentDetail = () => {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [translationPromptOpen, setTranslationPromptOpen] = useState(false);
+  const [pendingLanguage, setPendingLanguage] = useState<{ id: string, label: string } | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+
   const [callStatus, setCallStatus] = useState<"idle" | "connecting" | "active" | "ended">("idle");
   const [volume, setVolume] = useState(0);
   const [transcript, setTranscript] = useState<Turn[]>([]);
@@ -186,6 +191,61 @@ const AgentDetail = () => {
       .eq("agent_id", id)
       .order("created_at", { ascending: false });
     setCalls(data ?? []);
+  };
+
+  const handleLanguageSelect = (langId: string, langLabel: string) => {
+    if (agent?.language === langId) return;
+    setPendingLanguage({ id: langId, label: langLabel });
+    setTranslationPromptOpen(true);
+  };
+
+  const confirmTranslation = async (shouldTranslate: boolean) => {
+    if (!pendingLanguage || !agent) {
+      setTranslationPromptOpen(false);
+      return;
+    }
+
+    const newLang = pendingLanguage.id;
+    const newLangLabel = pendingLanguage.label;
+
+    if (!shouldTranslate) {
+      setAgent({ ...agent, language: newLang });
+      setTranslationPromptOpen(false);
+      setPendingLanguage(null);
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-agent-config", {
+        body: {
+          action: "translate",
+          system_prompt: agent.system_prompt || " ",
+          first_message: agent.first_message || " ",
+          target_language: newLangLabel,
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setAgent({
+        ...agent,
+        language: newLang,
+        system_prompt: data.system_prompt || agent.system_prompt,
+        first_message: data.first_message || agent.first_message,
+      });
+      toast({ title: "Translated successfully", description: `Your prompt has been translated to ${newLangLabel}.` });
+    } catch (err: any) {
+      console.error("Translation failed:", err);
+      toast({ title: "Translation failed", description: err.message || "Could not translate prompt.", variant: "destructive" });
+      // Still update language if translation fails
+      setAgent({ ...agent, language: newLang });
+    } finally {
+      setIsTranslating(false);
+      setTranslationPromptOpen(false);
+      setPendingLanguage(null);
+    }
   };
 
   const save = async () => {
@@ -407,7 +467,7 @@ const AgentDetail = () => {
                   <Label className="mb-3 block">Language</Label>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {languages.map((l) => (
-                      <button key={l.id} onClick={() => setAgent({ ...agent, language: l.id })} className={cn(
+                      <button key={l.id} onClick={() => handleLanguageSelect(l.id, l.label)} className={cn(
                         "rounded-lg border px-3 py-2 text-left text-sm transition-all",
                         agent.language === l.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
                       )}>{l.label}</button>
@@ -513,6 +573,26 @@ const AgentDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={translationPromptOpen} onOpenChange={(open) => !isTranslating && setTranslationPromptOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Translate Prompt?</DialogTitle>
+            <DialogDescription>
+              You've selected <strong>{pendingLanguage?.label}</strong>. Would you like to use AI to translate your existing First Message and System Prompt into this language?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex sm:justify-end gap-2">
+            <Button variant="ghost" onClick={() => confirmTranslation(false)} disabled={isTranslating}>
+              No, keep current text
+            </Button>
+            <Button onClick={() => confirmTranslation(true)} disabled={isTranslating}>
+              {isTranslating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Yes, translate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
