@@ -106,7 +106,16 @@ ${first_message}`;
       if (!geminiResp.ok) {
         const t = await geminiResp.text();
         console.error("Gemini translation error:", geminiResp.status, t);
-        return json({ error: `Translation failed: ${geminiResp.status}`, details: t }, 200); // Changed to 200 to avoid throwing Edge Function error immediately, let frontend handle it
+        let errorMsg = `Translation failed: ${geminiResp.status}`;
+        try {
+            const parsedError = JSON.parse(t);
+            if (parsedError?.error?.message) {
+                errorMsg = parsedError.error.message;
+            }
+        } catch {
+            // Ignore parse errors
+        }
+        return json({ error: errorMsg, details: t }, 200); // Changed to 200 to avoid throwing Edge Function error immediately, let frontend handle it
       }
 
       const geminiData = await geminiResp.json();
