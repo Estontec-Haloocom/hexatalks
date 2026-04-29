@@ -46,8 +46,8 @@ serve(async (req) => {
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "Not authenticated" }, 401);
 
-    const VAPI_KEY = Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
-    if (!VAPI_KEY) return json({ error: "VAPI private key missing" }, 400);
+    const VAPI_KEY = Deno.env.get("VAPI_PRIVATE_KEY") || Deno.env.get("VAPI_API_KEY") || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
+    if (!VAPI_KEY) return json({ error: "VAPI private key missing" }, 200); // return 200 to avoid console spam
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -56,13 +56,19 @@ serve(async (req) => {
     );
 
     const { callId } = await req.json().catch(() => ({}));
-    if (!callId) return json({ error: "callId required" }, 400);
+    if (!callId) return json({ error: "callId required" }, 200);
+
+    // Skip syncing if it's a Twilio Call SID (starts with CA) or an Ultravox call id (not a vapi call)
+    if (callId.startsWith("CA") || callId.startsWith("c-")) {
+      return json({ ok: true, skipped: true, reason: "Not a Vapi call ID" });
+    }
 
     const r = await fetch(`https://api.vapi.ai/call/${encodeURIComponent(callId)}`, {
       headers: { Authorization: `Bearer ${VAPI_KEY}` },
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: data?.message || "Could not fetch call from Vapi", details: data }, 400);
+    // Return 200 even on error to prevent browser console error spam from background polling
+    if (!r.ok) return json({ error: data?.message || "Could not fetch call from Vapi", details: data }, 200);
 
     const startedAt = data?.startedAt ? new Date(data.startedAt).getTime() : null;
     const endedAt = data?.endedAt ? new Date(data.endedAt).getTime() : null;
@@ -91,7 +97,7 @@ serve(async (req) => {
       .from("calls")
       .update(update)
       .eq("vapi_call_id", callId);
-    if (upErr) return json({ error: upErr.message }, 400);
+    if (upErr) return json({ error: upErr.message }, 200);
 
     return json({
       ok: true,
