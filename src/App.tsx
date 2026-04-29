@@ -19,6 +19,7 @@ import Transcriptions from "./pages/app/Transcriptions.tsx";
 import Feedback from "./pages/app/Feedback.tsx";
 import Organisation from "./pages/app/Organisation.tsx";
 import Integrations from "./pages/app/Integrations.tsx";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <OrgProvider>
           <Routes>

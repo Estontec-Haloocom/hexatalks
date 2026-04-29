@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Phone, Plus, Bot, Trash2, Calendar as CalIcon, Link2, Link2Off, Loader2, Download, Upload } from "lucide-react";
+import { Phone, Plus, Bot, Trash2, Calendar as CalIcon, Link2, Link2Off, Loader2, Download, Upload, CalendarClock } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
@@ -210,7 +210,7 @@ const PhoneNumbers = () => {
     parseContactsFromText(text);
   };
 
-  const scheduleInboundCalls = () => {
+  const scheduleInboundCalls = async () => {
     if (!openAgent) return;
     if (!pendingNumberId) {
       toast({ title: "Assign a number first", variant: "destructive" });
@@ -220,10 +220,41 @@ const PhoneNumbers = () => {
       toast({ title: "Add at least one contact", variant: "destructive" });
       return;
     }
-    toast({
-      title: "Schedule saved",
-      description: `${parsedContacts.length} contact(s) queued for ${openAgent.name}.`,
+
+    // Schedule: first assign the number
+    setSavingLink(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !currentOrgId) { setSavingLink(false); return; }
+    
+    const { error } = await supabase.from("phone_number_agents").insert({
+      user_id: user.id,
+      org_id: currentOrgId,
+      agent_id: openAgent.id,
+      phone_number_id: pendingNumberId,
+      starts_at: toIso(pendingStart),
+      ends_at: toIso(pendingEnd),
+      priority: pendingPriority,
+      active: true,
     });
+    
+    setSavingLink(false);
+    
+    if (error) { 
+      toast({ title: "Could not schedule", description: error.message, variant: "destructive" }); 
+      return; 
+    }
+
+    // Clean up state
+    setPendingNumberId(""); setPendingStart(""); setPendingEnd(""); setPendingPriority(0);
+    setContactRawInput(""); setParsedContacts([]);
+    
+    toast({
+      title: "Call scheduled",
+      description: `${parsedContacts.length} contact(s) scheduled for ${openAgent.name}.`,
+    });
+    
+    load();
+    setOpenAgent(null); // Close the form
   };
 
   const unlink = async (id: string) => {
@@ -378,7 +409,7 @@ const PhoneNumbers = () => {
 
       {/* Agent → numbers dialog */}
       <Dialog open={!!openAgent} onOpenChange={(o) => !o && setOpenAgent(null)}>
-      <DialogContent className="max-h-[85vh] w-[95vw] max-w-md overflow-hidden p-3 sm:max-w-lg sm:p-4">
+      <DialogContent className="max-h-[85vh] w-[90vw] max-w-md overflow-hidden rounded-2xl p-4 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" /> {openAgent?.name}
@@ -394,13 +425,13 @@ const PhoneNumbers = () => {
               <div>
                 <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">Connected numbers</div>
                 {numbersForAgent(openAgent.id).length === 0 ? (
-                  <div className="rounded-md border border-dashed border-border p-2.5 text-center text-xs text-muted-foreground">
+                  <div className="rounded-xl border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
                     No numbers linked yet.
                   </div>
                 ) : (
                   <div className="space-y-1.5">
                     {numbersForAgent(openAgent.id).map(({ assignment, number }) => (
-                      <div key={assignment.id} className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-background p-2">
+                      <div key={assignment.id} className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-background p-2">
                         <Phone className="h-4 w-4 text-accent" />
                         <div className="min-w-0">
                           <div className="font-mono text-xs">{number?.e164}</div>
@@ -419,18 +450,18 @@ const PhoneNumbers = () => {
               </div>
 
               {/* Add another number */}
-              <div className="rounded-md border border-border bg-surface p-2.5">
-                <div className="mb-1.5 flex items-center gap-2 text-sm font-medium">
+              <div className="rounded-xl border border-border bg-surface p-3 sm:p-4">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                   <Link2 className="h-4 w-4" /> Connect a number
                 </div>
                 {availableNumbersForAgent(openAgent.id).length === 0 ? (
                   <div className="text-xs text-muted-foreground">All your numbers are already linked to this agent.</div>
                 ) : (
-                  <div className="grid gap-2">
+                  <div className="grid gap-2.5">
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label className="text-xs">Phone number</Label>
                       <select value={pendingNumberId} onChange={(e) => setPendingNumberId(e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm">
+                        className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm">
                         <option value="">Select a number…</option>
                         {availableNumbersForAgent(openAgent.id).map((n) => (
                           <option key={n.id} value={n.id}>{numLabel(n)}</option>
@@ -441,11 +472,11 @@ const PhoneNumbers = () => {
                       <>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Schedule date/time from</Label>
-                          <Input className="h-9" type="datetime-local" value={pendingStart} onChange={(e) => setPendingStart(e.target.value)} />
+                          <Input className="h-9 rounded-lg" type="datetime-local" value={pendingStart} onChange={(e) => setPendingStart(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Schedule date/time until</Label>
-                          <Input className="h-9" type="datetime-local" value={pendingEnd} onChange={(e) => setPendingEnd(e.target.value)} />
+                          <Input className="h-9 rounded-lg" type="datetime-local" value={pendingEnd} onChange={(e) => setPendingEnd(e.target.value)} />
                         </div>
                         <div className="space-y-1.5 sm:col-span-2">
                           <Label className="text-xs">Contacts (one per line or comma-separated)</Label>
@@ -456,14 +487,14 @@ const PhoneNumbers = () => {
                               setContactRawInput(e.target.value);
                               parseContactsFromText(e.target.value);
                             }}
-                            className="min-h-[64px]"
+                            className="min-h-[64px] rounded-lg"
                             placeholder="+919876543210, +14155550123"
                           />
                         </div>
                         <div className="space-y-1.5 sm:col-span-2">
                           <Label className="text-xs">Or upload contacts file (.txt/.csv)</Label>
                           <Input
-                            className="h-9 file:h-8 file:text-xs"
+                            className="h-9 file:h-8 file:text-xs rounded-lg"
                             type="file"
                             accept=".txt,.csv"
                             onChange={(e) => {
@@ -474,31 +505,35 @@ const PhoneNumbers = () => {
                         </div>
                       </>
                     )}
-                    <div className="flex items-end">
-                      <Button onClick={linkNumberToAgent} disabled={!pendingNumberId || savingLink} className="h-9 w-full">
-                        {savingLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Assign number
-                      </Button>
-                    </div>
+                    {!openAgent.outbound_enabled ? (
+                      <div className="flex items-end mt-2">
+                        <Button onClick={linkNumberToAgent} disabled={!pendingNumberId || savingLink} className="h-9 w-full rounded-lg">
+                          {savingLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Assign number
+                        </Button>
+                      </div>
+                    ) : null}
+                    
                     {!openAgent.outbound_enabled && (
-                      <>
+                      <div className="grid gap-2 mt-2">
                         <div className="space-y-1.5 sm:col-span-2">
                           <Label className="text-xs">Outbound destination number</Label>
-                          <Input className="h-9" value={outboundToNumber} onChange={(e) => setOutboundToNumber(e.target.value)} placeholder="+919876543210" />
+                          <Input className="h-9 rounded-lg" value={outboundToNumber} onChange={(e) => setOutboundToNumber(e.target.value)} placeholder="+919876543210" />
                         </div>
                         <div className="sm:col-span-2">
-                          <Button className="h-9 w-full" onClick={() => placeOutboundCall(outboundToNumber)} disabled={!outboundToNumber || placingOutbound}>
+                          <Button className="h-9 w-full rounded-lg" onClick={() => placeOutboundCall(outboundToNumber)} disabled={!outboundToNumber || placingOutbound}>
                             {placingOutbound ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Initiate call
                           </Button>
                         </div>
-                      </>
+                      </div>
                     )}
+                    
                     {openAgent.outbound_enabled && (
-                      <div className="sm:col-span-2 grid grid-cols-2 gap-2">
-                        <Button className="h-9 w-full" onClick={() => placeOutboundCall(parsedContacts[0] ?? "")} disabled={parsedContacts.length === 0 || placingOutbound}>
+                      <div className="sm:col-span-2 grid grid-cols-2 gap-2 mt-4">
+                        <Button className="h-9 w-full rounded-lg" onClick={() => placeOutboundCall(parsedContacts[0] ?? "")} disabled={parsedContacts.length === 0 || placingOutbound}>
                           {placingOutbound ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Initiate call
                         </Button>
-                        <Button className="h-9 w-full" variant="outline" onClick={scheduleInboundCalls}>
-                          <Upload className="h-4 w-4" /> Schedule
+                        <Button className="h-9 w-full rounded-lg" variant="outline" onClick={scheduleInboundCalls} disabled={savingLink}>
+                          {savingLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} Schedule
                         </Button>
                         <span className="col-span-2 text-[11px] text-muted-foreground">{parsedContacts.length} valid contact(s)</span>
                       </div>

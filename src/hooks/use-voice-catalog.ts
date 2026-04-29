@@ -103,6 +103,11 @@ export const useVoiceCatalog = () => {
     },
     staleTime: 1000 * 60 * 10,
     retry: 1,
-    initialData: { voices: [], languages: FALLBACK_LANGS },
+    initialData: { 
+      voices: devOn 
+        ? (platform === "ultravox" ? FALLBACK_ULTRAVOX_VOICES : FALLBACK_VAPI_VOICES) 
+        : [...FALLBACK_VAPI_VOICES, ...FALLBACK_ULTRAVOX_VOICES], 
+      languages: FALLBACK_LANGS 
+    },
   });
 };

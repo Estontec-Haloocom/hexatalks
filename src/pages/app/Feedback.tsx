@@ -76,7 +76,7 @@ const Feedback = () => {
   const [mode, setMode] = useState<"same" | "new" | null>(null);
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("Politely let the caller know you'd love a few seconds of feedback to improve the experience. Keep it short and warm.");
-  const [question, setQuestion] = useState("On a scale of 1 to 5, how would you rate the call you just had — and what could we do better?");
+  const [questions, setQuestions] = useState<string[]>(["On a scale of 1 to 5, how would you rate the call you just had — and what could we do better?"]);
   const [trigger, setTrigger] = useState<"in_call" | "after_call">("after_call");
   const [delay, setDelay] = useState<number>(5);
   const [saving, setSaving] = useState(false);
@@ -104,13 +104,17 @@ const Feedback = () => {
 
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [currentOrgId]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
   const sourceAgent = useMemo(() => agents.find((a) => a.id === sourceId), [agents, sourceId]);
 
   const reset = () => {
     setCreating(false); setEditingId(null); setStep(0); setSourceId(null); setMode(null);
     setName(""); setTrigger("after_call"); setDelay(5);
     setPrompt("Politely let the caller know you'd love a few seconds of feedback to improve the experience. Keep it short and warm.");
-    setQuestion("On a scale of 1 to 5, how would you rate the call you just had — and what could we do better?");
+    setQuestions(["On a scale of 1 to 5, how would you rate the call you just had — and what could we do better?"]);
     endCall();
   };
 
@@ -121,7 +125,15 @@ const Feedback = () => {
     setMode(it.settings_mode);
     setName(it.name);
     setPrompt(it.prompt);
-    setQuestion(it.question);
+    
+    // Handle backwards compatibility with single string questions
+    try {
+      const parsed = JSON.parse(it.question);
+      setQuestions(Array.isArray(parsed) ? parsed : [it.question]);
+    } catch {
+      setQuestions([it.question]);
+    }
+
     setTrigger(it.trigger_type);
     setDelay(it.delay_minutes ?? 0);
     setStep(2);
@@ -129,6 +141,12 @@ const Feedback = () => {
 
   const save = async () => {
     if (!user || !sourceId || !mode) return;
+    const validQuestions = questions.filter(q => q.trim().length > 0);
+    if (validQuestions.length === 0) {
+      toast({ title: "Validation error", description: "Please add at least one question.", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     const payload = {
       name: name.trim() || `Feedback for ${sourceAgent?.name ?? "agent"}`,
@@ -137,7 +155,7 @@ const Feedback = () => {
       trigger_type: trigger,
       delay_minutes: trigger === "after_call" ? Math.max(0, Number(delay) || 0) : 0,
       prompt: prompt.trim(),
-      question: question.trim(),
+      question: JSON.stringify(validQuestions),
     };
     const { error } = editingId
       ? await supabase.from("feedback_agents").update(payload).eq("id", editingId)
@@ -163,10 +181,16 @@ const Feedback = () => {
     const fullLang = sourceAgent.language || "en-US";
     const langShort = fullLang.split("-")[0].toLowerCase();
     const langName = LANG_NAMES[langShort] || fullLang;
+    
+    const validQuestions = questions.filter(q => q.trim().length > 0);
+    const questionsPrompt = validQuestions.length > 1 
+      ? `Ask the caller the following questions one by one:\n${validQuestions.map((q, i) => `${i + 1}. "${q.trim()}"`).join("\n")}`
+      : `Ask the caller exactly: "${validQuestions[0]?.trim() || ''}"`;
+
     return [
       `You are a feedback agent attached to "${sourceAgent.name}".`,
       `## Goal\n${prompt.trim()}`,
-      `## Question to ask\nAsk the caller exactly: "${question.trim()}"\nFollow up briefly to clarify their answer if needed, then thank them and end the call.`,
+      `## Questions to ask\n${questionsPrompt}\nFollow up briefly to clarify their answers if needed, wait for them to answer each question before moving to the next, then thank them and end the call.`,
       `## Style\nBe warm, brief and natural. Avoid long sentences.`,
       `## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`,
     ].join("\n\n");
@@ -244,7 +268,16 @@ const Feedback = () => {
                         </Badge>
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">For agent: {src?.name ?? "—"}</div>
-                      <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">Q: {it.question}</div>
+                      <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                        {(() => {
+                          try {
+                            const parsed = JSON.parse(it.question);
+                            return Array.isArray(parsed) ? `${parsed.length} question(s): ${parsed[0]}...` : `Q: ${it.question}`;
+                          } catch {
+                            return `Q: ${it.question}`;
+                          }
+                        })()}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" onClick={() => startEdit(it)} aria-label="Edit">
@@ -347,9 +380,50 @@ const Feedback = () => {
                       <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
                     </div>
 
-                    <div className="grid gap-2">
-                      <Label>Question to ask</Label>
-                      <Input value={question} onChange={(e) => setQuestion(e.target.value)} />
+                    <div className="grid gap-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Questions to ask</Label>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-xs" 
+                          onClick={() => setQuestions([...questions, ""])}
+                        >
+                          <Plus className="mr-1 h-3.5 w-3.5" /> Add question
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {questions.map((q, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <div className="mt-2.5 text-xs text-muted-foreground w-4 text-center">{idx + 1}.</div>
+                            <Input 
+                              value={q} 
+                              onChange={(e) => {
+                                const newQ = [...questions];
+                                newQ[idx] = e.target.value;
+                                setQuestions(newQ);
+                              }} 
+                              placeholder="e.g., How would you rate your experience?"
+                            />
+                            {questions.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="shrink-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => {
+                                  const newQ = [...questions];
+                                  newQ.splice(idx, 1);
+                                  setQuestions(newQ);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -430,7 +504,7 @@ const Feedback = () => {
                     {step === 1 && mode === "new" ? "Open agent wizard" : "Next"} <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button onClick={save} disabled={saving || !question.trim() || !prompt.trim()}>
+                  <Button onClick={save} disabled={saving || questions.filter(q => q.trim()).length === 0 || !prompt.trim()}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {editingId ? "Update" : "Save"}
                   </Button>
                 )}

@@ -45,7 +45,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const KEY = Deno.env.get("ULTRAVOX_API_KEY");
+    const KEY = Deno.env.get("ULTRAVOX_API_KEY") || Deno.env.get("ULTRAVOX_KEY");
     if (!KEY) return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Ultravox API key not configured." });
 
     const allItems: any[] = [];

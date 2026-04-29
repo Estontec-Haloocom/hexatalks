@@ -123,10 +123,11 @@ const NewAgent = () => {
       const genderOk = gender === "Neutral" || !v.gender || tokenIncludes(v.gender, gender);
       const accentOk =
         accent === "Neutral" ||
+        !v.accent ||
         tokenIncludes(v.accent, accent) ||
         tokenIncludes(v.country, accent) ||
         tokenIncludes(v.description, accent);
-      return langOk && (genderOk || accentOk);
+      return langOk && genderOk && accentOk;
     });
   }, [allVoices, language, gender, accent]);
 
@@ -135,7 +136,7 @@ const NewAgent = () => {
     return allVoices.filter((v) => !v.language || v.language.toLowerCase().startsWith(langPrefix));
   }, [allVoices, language]);
 
-  const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : (languageOnlyVoices.length ? languageOnlyVoices : allVoices);
+  const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : languageOnlyVoices;
   const visibleVoices = useMemo(() => {
     const q = voiceSearch.trim().toLowerCase();
     if (!q) return baseVoices;
@@ -149,6 +150,10 @@ const NewAgent = () => {
   useEffect(() => {
     if (!voiceId && visibleVoices.length > 0) setVoiceId(visibleVoices[0].id);
   }, [voiceId, visibleVoices]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   const playPreview = (v: VoiceOption) => {
     if (previewing === v.id && previewAudioRef.current) {

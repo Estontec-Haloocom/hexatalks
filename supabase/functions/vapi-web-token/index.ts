@@ -53,7 +53,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const VAPI_PRIVATE_KEY = Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
+    const VAPI_PRIVATE_KEY = Deno.env.get("VAPI_PRIVATE_KEY") || Deno.env.get("VAPI_API_KEY") || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
     const VAPI_PUBLIC_KEY = Deno.env.get("VAPI_PUBLIC_KEY");
 
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
@@ -62,18 +62,22 @@ serve(async (req) => {
     if (action === "config") {
       if (!VAPI_PRIVATE_KEY) return json({ voices: fallbackVoices, languages: fallbackLanguages });
 
-      const voiceResp = await fetch("https://api.vapi.ai/voice-library/11labs?limit=100", {
-        headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
-      });
+      const providers = ["11labs", "playht", "deepgram", "openai", "azure"];
+      const fetchProvider = async (provider: string) => {
+        try {
+          const res = await fetch(`https://api.vapi.ai/voice-library/${provider}?limit=100`, {
+            headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
+          });
+          if (!res.ok) return [];
+          return listFrom(await res.json());
+        } catch {
+          return [];
+        }
+      };
 
-      if (!voiceResp.ok) {
-        const text = await voiceResp.text();
-        console.error("vapi voice library error", voiceResp.status, text);
-        return json({ voices: fallbackVoices, languages: fallbackLanguages, warning: "Could not fetch Vapi voices with the configured key." });
-      }
+      const allItemsLists = await Promise.all(providers.map(fetchProvider));
+      const voiceItems = allItemsLists.flat();
 
-      const voiceData = await voiceResp.json();
-      const voiceItems = listFrom(voiceData);
       const voices = voiceItems.length
         ? voiceItems
             .map((voice: any) => ({
