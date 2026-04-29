@@ -51,6 +51,9 @@ const toLabel = (languageCode?: string, languageName?: string) => {
   return languageName || languageCode || "Unknown";
 };
 
+// Cache the token in memory to avoid generating it repeatedly during the same function isolate lifetime
+let cachedToken: string | null = null;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -129,6 +132,29 @@ serve(async (req) => {
 
     if (!VAPI_PRIVATE_KEY) return json({ error: "Vapi key is not configured." });
 
+    if (cachedToken) {
+      return json({ publicKey: cachedToken });
+    }
+
+    // Try to find an existing global token to avoid creating a new one on every call
+    try {
+      const existingTokensResp = await fetch("https://api.vapi.ai/token", {
+        headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
+      });
+      if (existingTokensResp.ok) {
+        const tokens = await existingTokensResp.json();
+        if (Array.isArray(tokens)) {
+          const globalToken = tokens.find((t: any) => t.name === "hexatalks-web-global");
+          if (globalToken && (globalToken.value || globalToken.token || globalToken.publicKey)) {
+            cachedToken = globalToken.value || globalToken.token || globalToken.publicKey;
+            return json({ publicKey: cachedToken });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not list existing tokens", e);
+    }
+
     const tokenResp = await fetch("https://api.vapi.ai/token", {
       method: "POST",
       headers: {
@@ -137,7 +163,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         tag: "public",
-        name: `hexatalks-web-${crypto.randomUUID().slice(0, 8)}`,
+        name: `hexatalks-web-global`,
       }),
     });
 
@@ -156,6 +182,7 @@ serve(async (req) => {
     const publicKey = tokenData?.value || tokenData?.token || tokenData?.publicKey;
     if (!publicKey) throw new Error("Vapi did not return a public token");
 
+    cachedToken = publicKey;
     return json({ publicKey });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
