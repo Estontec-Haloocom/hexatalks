@@ -704,11 +704,6 @@ const NewAgent = () => {
                         placeholder="Search voices by name, accent, gender..."
                       />
                     </div>
-                    {!strictFilteredVoices.length && !!languageOnlyVoices.length && (
-                      <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-                        No exact accent/gender match found. Showing language-matched voices.
-                      </div>
-                    )}
                     {catalog?.warning && (
                       <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
                         {catalog.warning}
