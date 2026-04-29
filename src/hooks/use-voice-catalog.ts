@@ -68,21 +68,40 @@ const dedupeBy = <T,>(arr: T[], key: (x: T) => string) => {
 
 /**
  * Returns voices + languages.
- * - Dev mode ON: only the platform selected in dev settings.
- * - Dev mode OFF: union of all providers so the user sees everything.
+ * Implements a robust local-first caching architecture so that
+ * on reload, voices appear instantly without waiting for network requests.
  */
 export const useVoiceCatalog = () => {
   const { settings } = useDevSettings();
   const platform: VoicePlatform = settings.voice_platform;
   const devOn = settings.dev_mode_enabled;
 
+  const CACHE_KEY = `voice-catalog-${devOn ? platform : "all"}`;
+
   return useQuery({
-    queryKey: ["voice-catalog", devOn ? platform : "all"],
+    queryKey: [CACHE_KEY],
+    initialData: () => {
+      // Instant load from localStorage
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.voices) && parsed.voices.length > 0) {
+            return parsed as CatalogResponse;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse cached voice catalog", e);
+      }
+      return undefined;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour (don't refetch on every tiny mount)
     queryFn: async (): Promise<CatalogResponse> => {
+      let finalRes: CatalogResponse;
       if (devOn) {
         const res = platform === "ultravox" ? await fetchUltravox() : await fetchVapi();
         const fallbackVoices = platform === "ultravox" ? FALLBACK_ULTRAVOX_VOICES : FALLBACK_VAPI_VOICES;
-        return {
+        finalRes = {
           voices: res.voices.length ? res.voices : fallbackVoices,
           languages: res.languages.length ? res.languages : FALLBACK_LANGS,
           warning:
@@ -91,23 +110,27 @@ export const useVoiceCatalog = () => {
               ? `${platform === "ultravox" ? "Ultravox" : "Vapi"} returned no voices. Showing fallback list.`
               : undefined),
         };
+      } else {
+        const [vapi, uv] = await Promise.all([fetchVapi(), fetchUltravox()]);
+        const voices = dedupeBy(
+          [...vapi.voices, ...uv.voices, ...FALLBACK_VAPI_VOICES, ...FALLBACK_ULTRAVOX_VOICES],
+          (v) => `${v.provider}:${v.id}`,
+        );
+        const languages = dedupeBy([...vapi.languages, ...uv.languages, ...FALLBACK_LANGS], (l) => l.id);
+        const warnings = [vapi.warning, uv.warning].filter(Boolean).join(" | ");
+        finalRes = { voices, languages, warning: warnings || undefined };
       }
-      const [vapi, uv] = await Promise.all([fetchVapi(), fetchUltravox()]);
-      const voices = dedupeBy(
-        [...vapi.voices, ...uv.voices, ...FALLBACK_VAPI_VOICES, ...FALLBACK_ULTRAVOX_VOICES],
-        (v) => `${v.provider}:${v.id}`,
-      );
-      const languages = dedupeBy([...vapi.languages, ...uv.languages, ...FALLBACK_LANGS], (l) => l.id);
-      const warnings = [vapi.warning, uv.warning].filter(Boolean).join(" | ");
-      return { voices, languages, warning: warnings || undefined };
-    },
-    staleTime: 1000 * 60 * 10,
-    retry: 1,
-    initialData: { 
-      voices: devOn 
-        ? (platform === "ultravox" ? FALLBACK_ULTRAVOX_VOICES : FALLBACK_VAPI_VOICES) 
-        : [...FALLBACK_VAPI_VOICES, ...FALLBACK_ULTRAVOX_VOICES], 
-      languages: FALLBACK_LANGS 
+
+      // Save successful network response to robust local cache
+      if (finalRes && finalRes.voices.length > 0) {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(finalRes));
+        } catch (e) {
+          console.warn("Failed to cache voice catalog", e);
+        }
+      }
+
+      return finalRes;
     },
   });
 };
