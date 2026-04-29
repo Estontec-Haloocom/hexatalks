@@ -53,133 +53,156 @@ export type AgentLike = {
   temperature?: number;
 };
 
-export const startWebCall = async (
+export const startWebCall = (
   platform: VoicePlatform,
   agent: AgentLike,
   blocks: PromptBlock[],
   overrides?: { systemPromptOverride?: string; firstMessageOverride?: string; orgPromptConfig?: OrgPromptConfigForBuild | null },
-): Promise<CallController> => {
+): CallController => {
   const listeners: Listeners = {};
-  const emit = (e: string, p: any) => listeners[e]?.(p);
-
-  try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
-
-  const baseSystem = overrides?.systemPromptOverride ?? agent.system_prompt;
-  const systemPrompt = [buildEnhancedSystemPrompt(baseSystem, blocks, agent.language, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
-    .filter(Boolean)
-    .join("\n\n");
-  const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
-
-  // Determine actual platform: if the agent's voice explicitly requires a certain platform, use it.
-  const actualPlatform = agent.voice_provider === "ultravox" ? "ultravox" : 
-                         (agent.voice_provider && agent.voice_provider !== "11labs" && agent.voice_provider !== "playht" && agent.voice_provider !== "azure" && agent.voice_provider !== "deepgram" && agent.voice_provider !== "openai") 
-                         ? platform : platform;
-
-  // Force Ultravox if the provider is specifically ultravox to prevent Vapi from crashing on an ultravox voice
-  const routeToUltravox = actualPlatform === "ultravox" || agent.voice_provider === "ultravox";
-
-  if (routeToUltravox) {
-    // If the agent was configured with an Ultravox voice, use it directly.
-    // Otherwise (legacy Vapi name) map to a sensible Ultravox equivalent.
-    const isUltravoxVoice = agent.voice_provider === "ultravox";
-    const uvVoice = isUltravoxVoice
-      ? agent.voice_id
-      : ULTRAVOX_FALLBACK_MAP[agent.voice_id?.toLowerCase?.()] ?? ULTRAVOX_DEFAULT_VOICE;
-    const { data, error } = await supabase.functions.invoke("ultravox-create-call", {
-      body: {
-        systemPrompt: `${firstMessage ? `# Greeting\nStart by saying: "${firstMessage}"\n\n` : ""}${systemPrompt}`,
-        voice: uvVoice,
-        languageHint: (agent.language || "en-US").split("-")[0].toLowerCase(),
-        temperature: Number(agent.temperature ?? 0.25),
-        agentId: agent.id,
-      },
-    });
-    if (error) throw error;
-    if (!data?.joinUrl) throw new Error(data?.error || "Ultravox did not return a join URL");
-
-    const session = new UltravoxSession();
-    session.addEventListener("status", () => {
-      const s = (session as any).status;
-      if (s === "connecting") emit("status", "connecting");
-      else if (s === "idle" || s === "disconnected") emit("status", "ended");
-      else if (s) emit("status", "active");
-    });
-    session.addEventListener("transcripts", () => {
-      const ts = (session as any).transcripts ?? [];
-      const last = ts[ts.length - 1];
-      if (last?.isFinal) {
-        emit("transcript", { role: last.speaker === "user" ? "user" : "assistant", text: last.text });
-      }
-    });
-    (session as any).joinCall?.(data.joinUrl);
-
-    return {
-      stop: () => { try { (session as any).leaveCall?.(); } catch { /* noop */ } },
-      on: (event, handler) => { listeners[event] = handler; },
-    };
-  }
-
-  // Default: Vapi
-  const { data, error } = await supabase.functions.invoke("vapi-web-token");
-  if (error) throw error;
-  if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
-
-  const vapi = new Vapi(data.publicKey);
-  vapi.on("call-start", () => emit("status", "active"));
-  vapi.on("call-end", () => { emit("status", "ended"); emit("volume", 0); });
-  vapi.on("volume-level", (v: number) => emit("volume", v));
-  vapi.on("message", (m: any) => {
-    if (m.type === "transcript" && m.transcriptType === "final") {
-      emit("transcript", { role: m.role === "user" ? "user" : "assistant", text: m.transcript });
-    }
-  });
-  vapi.on("error", (e: any) => emit("error", e));
-
-  const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, agent.voice_id);
-  const voiceId = isFallbackName ? VOICE_MAP[agent.voice_id] : agent.voice_id;
-  const voiceProvider = agent.voice_provider || "11labs";
-  const fullLang = agent.language || "en-US";
-  const langShort = fullLang.split("-")[0].toLowerCase();
-
-  emit("status", "connecting");
+  const missedEvents: { event: string; payload: any }[] = [];
   
-  const vapiVoiceConfig: any = voiceProvider === "vapi" 
-    ? { voiceId: voiceId } 
-    : { provider: voiceProvider, voiceId: voiceId };
+  const emit = (event: string, payload: any) => {
+    if (listeners[event]) {
+      listeners[event]?.(payload);
+    } else {
+      missedEvents.push({ event, payload });
+    }
+  };
 
-  // Only append specific 11labs config if it's an actual 11labs external voice, not a custom vapi cloned voice.
-  // Many Vapi specific/custom voices will fail if arbitrary 11labs config params are attached to them.
-  if (voiceProvider === "11labs" && !voiceId.includes("vapi")) {
-    vapiVoiceConfig.model = "eleven_multilingual_v2";
-    vapiVoiceConfig.optimizeStreamingLatency = 3;
-    vapiVoiceConfig.stability = 0.45;
-    vapiVoiceConfig.similarityBoost = 0.8;
-    vapiVoiceConfig.style = 0.15;
-    vapiVoiceConfig.useSpeakerBoost = true;
-  }
+  let isStopped = false;
+  let activeSessionOrVapi: any = null;
 
-  await vapi.start({
-    name: agent.name,
-    firstMessage,
-    model: {
-      provider: "openai",
-      model: agent.model || "gpt-4o-mini",
-      temperature: Number(agent.temperature ?? 0.2),
-      maxTokens: 140,
-      messages: [{ role: "system", content: systemPrompt }],
-    },
-    voice: vapiVoiceConfig,
-    transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
-    startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
-    stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },
-    backgroundDenoisingEnabled: true,
-    silenceTimeoutSeconds: 20,
-    responseDelaySeconds: 0.05,
-  } as any);
+  const stop = () => {
+    isStopped = true;
+    try { activeSessionOrVapi?.stop?.(); } catch { /* noop */ }
+    try { activeSessionOrVapi?.leaveCall?.(); } catch { /* noop */ }
+  };
+
+  const init = async () => {
+    try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
+    if (isStopped) return;
+
+    const baseSystem = overrides?.systemPromptOverride ?? agent.system_prompt;
+    const systemPrompt = [buildEnhancedSystemPrompt(baseSystem, blocks, agent.language, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
+      .filter(Boolean)
+      .join("\n\n");
+    const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
+
+    const actualPlatform = agent.voice_provider === "ultravox" ? "ultravox" : 
+                           (agent.voice_provider && agent.voice_provider !== "11labs" && agent.voice_provider !== "playht" && agent.voice_provider !== "azure" && agent.voice_provider !== "deepgram" && agent.voice_provider !== "openai") 
+                           ? platform : platform;
+
+    const routeToUltravox = actualPlatform === "ultravox" || agent.voice_provider === "ultravox";
+
+    if (routeToUltravox) {
+      const isUltravoxVoice = agent.voice_provider === "ultravox";
+      const uvVoice = isUltravoxVoice
+        ? agent.voice_id
+        : ULTRAVOX_FALLBACK_MAP[agent.voice_id?.toLowerCase?.()] ?? ULTRAVOX_DEFAULT_VOICE;
+      
+      const { data, error } = await supabase.functions.invoke("ultravox-create-call", {
+        body: {
+          systemPrompt: `${firstMessage ? `# Greeting\nStart by saying: "${firstMessage}"\n\n` : ""}${systemPrompt}`,
+          voice: uvVoice,
+          languageHint: (agent.language || "en-US").split("-")[0].toLowerCase(),
+          temperature: Number(agent.temperature ?? 0.25),
+          agentId: agent.id,
+        },
+      });
+      if (error) throw error;
+      if (!data?.joinUrl) throw new Error(data?.error || "Ultravox did not return a join URL");
+      if (isStopped) return;
+
+      const session = new UltravoxSession();
+      activeSessionOrVapi = session;
+      session.addEventListener("status", () => {
+        const s = (session as any).status;
+        if (s === "connecting") emit("status", "connecting");
+        else if (s === "idle" || s === "disconnected") emit("status", "ended");
+        else if (s) emit("status", "active");
+      });
+      session.addEventListener("transcripts", () => {
+        const ts = (session as any).transcripts ?? [];
+        const last = ts[ts.length - 1];
+        if (last?.isFinal) {
+          emit("transcript", { role: last.speaker === "user" ? "user" : "assistant", text: last.text });
+        }
+      });
+      (session as any).joinCall?.(data.joinUrl);
+
+    } else {
+      const { data, error } = await supabase.functions.invoke("vapi-web-token");
+      if (error) throw error;
+      if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
+      if (isStopped) return;
+
+      const vapi = new Vapi(data.publicKey);
+      activeSessionOrVapi = vapi;
+      vapi.on("call-start", () => emit("status", "active"));
+      vapi.on("call-end", () => { emit("status", "ended"); emit("volume", 0); });
+      vapi.on("volume-level", (v: number) => emit("volume", v));
+      vapi.on("message", (m: any) => {
+        if (m.type === "transcript" && m.transcriptType === "final") {
+          emit("transcript", { role: m.role === "user" ? "user" : "assistant", text: m.transcript });
+        }
+      });
+      vapi.on("error", (e: any) => emit("error", e));
+
+      const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, agent.voice_id);
+      const voiceId = isFallbackName ? VOICE_MAP[agent.voice_id] : agent.voice_id;
+      const voiceProvider = agent.voice_provider || "11labs";
+      const fullLang = agent.language || "en-US";
+      const langShort = fullLang.split("-")[0].toLowerCase();
+
+      emit("status", "connecting");
+      
+      const vapiVoiceConfig: any = voiceProvider === "vapi" 
+        ? { voiceId: voiceId } 
+        : { provider: voiceProvider, voiceId: voiceId };
+
+      if (voiceProvider === "11labs" && !voiceId.includes("vapi")) {
+        vapiVoiceConfig.model = "eleven_multilingual_v2";
+        vapiVoiceConfig.optimizeStreamingLatency = 3;
+        vapiVoiceConfig.stability = 0.45;
+        vapiVoiceConfig.similarityBoost = 0.8;
+        vapiVoiceConfig.style = 0.15;
+        vapiVoiceConfig.useSpeakerBoost = true;
+      }
+
+      vapi.start({
+        name: agent.name,
+        firstMessage,
+        model: {
+          provider: "openai",
+          model: agent.model || "gpt-4o-mini",
+          temperature: Number(agent.temperature ?? 0.2),
+          maxTokens: 140,
+          messages: [{ role: "system", content: systemPrompt }],
+        },
+        voice: vapiVoiceConfig,
+        transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
+        startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
+        stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },
+        backgroundDenoisingEnabled: true,
+        silenceTimeoutSeconds: 20,
+        responseDelaySeconds: 0.05,
+      } as any).catch((e: any) => { if (!isStopped) emit("error", e); });
+    }
+  };
+
+  init().catch(e => { if (!isStopped) emit("error", e); });
 
   return {
-    stop: () => { try { vapi.stop(); } catch { /* noop */ } },
-    on: (event, handler) => { listeners[event] = handler; },
+    stop,
+    on: (event, handler) => {
+      listeners[event] = handler;
+      const toFlush = missedEvents.filter(e => e.event === event);
+      toFlush.forEach(e => handler(e.payload));
+      for (let i = missedEvents.length - 1; i >= 0; i--) {
+        if (missedEvents[i].event === event) missedEvents.splice(i, 1);
+      }
+    },
   };
 };

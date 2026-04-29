@@ -202,7 +202,7 @@ const Feedback = () => {
     setTranscript([]);
     try {
       const firstMessage = prompt.trim().split(/[.!?]/)[0].slice(0, 140) || "Hi! Mind if I ask you a quick question about the call?";
-      const ctrl = await startWebCall(devSettings.voice_platform, {
+      const ctrl = startWebCall(devSettings.voice_platform, {
         ...sourceAgent,
         name: `${sourceAgent.name} — feedback test`,
       }, blocks, {
