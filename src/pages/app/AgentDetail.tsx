@@ -251,7 +251,7 @@ const AgentDetail = () => {
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                     {voices.map((v) => (
                       <option key={`${v.provider}:${v.id}`} value={v.id}>
-                        [{v.provider}] {v.label} — {v.description}
+                        {v.label} — {v.description}
                       </option>
                     ))}
                   </select>

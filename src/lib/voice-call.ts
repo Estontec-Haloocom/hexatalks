@@ -135,6 +135,23 @@ export const startWebCall = async (
   const langShort = fullLang.split("-")[0].toLowerCase();
 
   emit("status", "connecting");
+  
+  const vapiVoiceConfig: any = {
+    provider: voiceProvider,
+    voiceId: voiceId
+  };
+
+  // Only append specific 11labs config if it's an actual 11labs external voice, not a custom vapi cloned voice.
+  // Many Vapi specific/custom voices will fail if arbitrary 11labs config params are attached to them.
+  if (voiceProvider === "11labs" && !voiceId.includes("vapi")) {
+    vapiVoiceConfig.model = "eleven_multilingual_v2";
+    vapiVoiceConfig.optimizeStreamingLatency = 3;
+    vapiVoiceConfig.stability = 0.45;
+    vapiVoiceConfig.similarityBoost = 0.8;
+    vapiVoiceConfig.style = 0.15;
+    vapiVoiceConfig.useSpeakerBoost = true;
+  }
+
   await vapi.start({
     name: agent.name,
     firstMessage,
@@ -145,11 +162,7 @@ export const startWebCall = async (
       maxTokens: 140,
       messages: [{ role: "system", content: systemPrompt }],
     },
-    voice: {
-      provider: voiceProvider,
-      voiceId,
-      ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
-    } as any,
+    voice: vapiVoiceConfig,
     transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
     startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
     stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },

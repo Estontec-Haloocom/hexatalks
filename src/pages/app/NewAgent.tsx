@@ -691,7 +691,7 @@ const NewAgent = () => {
                     ) : (
                       <div className="grid gap-2 sm:grid-cols-2 max-h-[420px] overflow-y-auto pr-1">
                         {visibleVoices.map((v) => (
-                        <div key={v.id} className={cn(
+                        <div key={`${v.provider}-${v.id}`} className={cn(
                           "flex items-start gap-3 rounded-lg border p-3 text-left transition-all",
                           (selectedVoice?.id ?? voiceId) === v.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
                         )}>

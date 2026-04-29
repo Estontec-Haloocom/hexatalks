@@ -65,7 +65,7 @@ serve(async (req) => {
       const providers = ["11labs", "playht", "deepgram", "openai", "azure"];
       const fetchProvider = async (provider: string) => {
         try {
-          const res = await fetch(`https://api.vapi.ai/voice-library/${provider}?limit=100`, {
+          const res = await fetch(`https://api.vapi.ai/voice-library/${provider}`, {
             headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
           });
           if (!res.ok) return [];
@@ -75,8 +75,22 @@ serve(async (req) => {
         }
       };
 
-      const allItemsLists = await Promise.all(providers.map(fetchProvider));
-      const voiceItems = allItemsLists.flat();
+      const fetchMyVoices = async () => {
+        try {
+          const res = await fetch(`https://api.vapi.ai/voice`, {
+            headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
+          });
+          if (!res.ok) return [];
+          const data = await res.json();
+          // Ensure we inject provider from the voice object to make it compatible
+          return listFrom(data).map((v: any) => ({ ...v, provider: v.provider || "11labs" }));
+        } catch {
+          return [];
+        }
+      };
+
+      const [myVoices, ...providerVoices] = await Promise.all([fetchMyVoices(), ...providers.map(fetchProvider)]);
+      const voiceItems = [...myVoices, ...providerVoices.flat()];
 
       const voices = voiceItems.length
         ? voiceItems

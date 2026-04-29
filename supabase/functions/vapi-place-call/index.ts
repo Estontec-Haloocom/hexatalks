@@ -254,7 +254,7 @@ serve(async (req) => {
             voice: {
               provider: voiceProvider,
               voiceId,
-              ...(voiceProvider === "11labs" ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
+              ...(voiceProvider === "11labs" && !voiceId.includes("vapi") ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
             },
             transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
             startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
