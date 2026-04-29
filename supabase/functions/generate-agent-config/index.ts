@@ -67,7 +67,8 @@ serve(async (req) => {
         return json({ error: "system_prompt, first_message, and target_language required" }, 400);
       }
       if (!GEMINI_API_KEY) {
-        return json({ error: "GEMINI_API_KEY missing" }, 500);
+        console.error("GEMINI_API_KEY missing");
+        return json({ error: "GEMINI_API_KEY missing" }, 200); // 200 so frontend can handle nicely
       }
 
       const translateSystem = `You are an expert translator. Translate the following 'system_prompt' and 'first_message' into the target language: ${target_language}.
@@ -104,14 +105,16 @@ ${first_message}`;
 
       if (!geminiResp.ok) {
         const t = await geminiResp.text();
-        return json({ error: `Translation failed: ${geminiResp.status}`, details: t }, 500);
+        console.error("Gemini translation error:", geminiResp.status, t);
+        return json({ error: `Translation failed: ${geminiResp.status}`, details: t }, 200); // Changed to 200 to avoid throwing Edge Function error immediately, let frontend handle it
       }
 
       const geminiData = await geminiResp.json();
       const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const parsed = extractFirstJsonObject(text);
       if (!parsed?.first_message || !parsed?.system_prompt) {
-        return json({ error: "Failed to parse translation" }, 500);
+        console.error("Failed to parse translation from Gemini:", text);
+        return json({ error: "Failed to parse translation", rawText: text }, 200); // Changed to 200 to avoid throwing Edge Function error
       }
       return json(parsed);
     }

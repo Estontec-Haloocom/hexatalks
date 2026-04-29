@@ -226,8 +226,14 @@ const AgentDetail = () => {
         }
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        console.error("Supabase function error:", error);
+        throw error;
+      }
+      if (data?.error) {
+        console.error("Translation returned error:", data.error, data.details);
+        throw new Error(data.error);
+      }
 
       setAgent({
         ...agent,
