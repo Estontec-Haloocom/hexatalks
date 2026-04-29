@@ -219,6 +219,8 @@ const AgentDetail = () => {
 
   const endCall = () => { callRef.current?.stop(); };
 
+  const providerLabel = devSettings.telephony_provider === "plivo" ? "Plivo" : devSettings.telephony_provider === "exotel" ? "Exotel" : "Twilio";
+
   const placeCall = async () => {
     if (!destNumber) return;
     // Normalize: strip formatting, convert leading 00 to +, ensure leading +
@@ -229,12 +231,12 @@ const AgentDetail = () => {
       toast({ title: "Invalid number", description: "Enter the country code and mobile number, e.g. +919876543210", variant: "destructive" });
       return;
     }
-    // Twilio rejects premium / special prefixes by default
+    // Telephony provider rejects premium / special prefixes by default
     const premium = /^\+1(900|976|809|411|700|500|976)/;
     if (premium.test(to)) {
       toast({
         title: "Premium number blocked",
-        description: "Numbers starting with +1 900/976/809/411 are premium and not allowed by Twilio. Try a regular mobile or landline.",
+        description: `Numbers starting with +1 900/976/809/411 are premium and not allowed by ${providerLabel}. Try a regular mobile or landline.`,
         variant: "destructive",
       });
       return;
@@ -242,7 +244,7 @@ const AgentDetail = () => {
     setPlacing(true);
     try {
       // Unified outbound runtime: same agent config + platform logic as test mode,
-      // while still dialing through Twilio from server-side secrets.
+      // while still dialing through the active telephony provider from server-side secrets.
       const { data, error } = await supabase.functions.invoke("vapi-place-call", {
         body: { agentId: agent.id, toNumber: to },
       });

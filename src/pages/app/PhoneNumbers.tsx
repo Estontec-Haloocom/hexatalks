@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
+import { useDevSettings } from "@/hooks/use-dev-settings";
 import { cn } from "@/lib/utils";
 
 type PhoneNumber = { id: string; e164: string; label: string | null; vapi_number_id: string | null; twilio_sid: string | null };
@@ -31,6 +32,8 @@ const toIso = (local: string) => (local ? new Date(local).toISOString() : null);
 const PhoneNumbers = () => {
   const { toast } = useToast();
   const { currentOrgId } = useOrg();
+  const { settings } = useDevSettings();
+  const providerLabel = settings.telephony_provider === "plivo" ? "Plivo" : settings.telephony_provider === "exotel" ? "Exotel" : "Twilio";
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -95,14 +98,18 @@ const PhoneNumbers = () => {
     load();
   };
 
-  const importFromTwilio = async () => {
+  const importFromProvider = async () => {
     setImporting(true);
     try {
+      if (settings.telephony_provider !== "twilio") {
+        toast({ title: `${providerLabel} import not supported`, description: "Only Twilio imports are supported in scaffold mode.", variant: "destructive" });
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("twilio-list-numbers");
       if (error) throw error;
       const list = (data?.numbers ?? []) as Array<{ sid: string; e164: string; label: string }>;
       if (list.length === 0) {
-        toast({ title: "No Twilio numbers found on your account" });
+        toast({ title: `No ${providerLabel} numbers found on your account` });
         return;
       }
       const { data: { user } } = await supabase.auth.getUser();
@@ -112,15 +119,15 @@ const PhoneNumbers = () => {
         .filter((n) => !existing.has(n.e164))
         .map((n) => ({ user_id: user.id, org_id: currentOrgId, e164: n.e164, label: n.label || null, twilio_sid: n.sid }));
       if (rows.length === 0) {
-        toast({ title: "All Twilio numbers already imported" });
+        toast({ title: `All ${providerLabel} numbers already imported` });
         return;
       }
       const { error: insErr } = await supabase.from("phone_numbers").insert(rows);
       if (insErr) throw insErr;
-      toast({ title: `Imported ${rows.length} number${rows.length === 1 ? "" : "s"} from Twilio` });
+      toast({ title: `Imported ${rows.length} number${rows.length === 1 ? "" : "s"} from ${providerLabel}` });
       load();
     } catch (e: any) {
-      toast({ title: "Twilio import failed", description: e.message, variant: "destructive" });
+      toast({ title: `${providerLabel} import failed`, description: e.message, variant: "destructive" });
     } finally {
       setImporting(false);
     }
@@ -280,8 +287,8 @@ const PhoneNumbers = () => {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-display text-lg tracking-tight">Your numbers</h2>
             <div className="flex items-center gap-3">
-              <Button size="sm" variant="outline" onClick={importFromTwilio} disabled={importing}>
-                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Import from Twilio
+              <Button size="sm" variant="outline" onClick={importFromProvider} disabled={importing}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Import from {providerLabel}
               </Button>
               <span className="text-xs text-muted-foreground">{numbers.length} total</span>
             </div>
@@ -298,7 +305,7 @@ const PhoneNumbers = () => {
                 <Input placeholder="Sales line" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Twilio SID (optional)</Label>
+                <Label className="text-xs">{providerLabel} SID / ID (optional)</Label>
                 <Input placeholder="PNxxxxxxxx" value={newSid} onChange={(e) => setNewSid(e.target.value)} />
               </div>
               <Button onClick={addNumber} disabled={adding} className="self-end">
