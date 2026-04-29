@@ -58,12 +58,68 @@ serve(async (req) => {
   }
 
   try {
-    const { industry, industryName, description, starterPrompt, country, accent, gender, tone, useCases, businessName, language } = await req.json();
+    const { action, system_prompt, first_message, target_language, industry, industryName, description, starterPrompt, country, accent, gender, tone, useCases, businessName, language } = await req.json();
+
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+    if (action === "translate") {
+      if (!system_prompt || !first_message || !target_language) {
+        return json({ error: "system_prompt, first_message, and target_language required" }, 400);
+      }
+      if (!GEMINI_API_KEY) {
+        return json({ error: "GEMINI_API_KEY missing" }, 500);
+      }
+
+      const translateSystem = `You are an expert translator. Translate the following 'system_prompt' and 'first_message' into the target language: ${target_language}.
+Preserve all formatting, markdown, and placeholders. Maintain the original tone and context.
+
+Return ONLY valid JSON with keys:
+{
+  "first_message": "translated text here",
+  "system_prompt": "translated text here"
+}`;
+
+      const translateUser = `System Prompt to translate:
+${system_prompt}
+
+First Message to translate:
+${first_message}`;
+
+      const geminiResp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              { role: "user", parts: [{ text: `${translateSystem}\n\n${translateUser}` }] },
+            ],
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: "application/json",
+            },
+          }),
+        },
+      );
+
+      if (!geminiResp.ok) {
+        const t = await geminiResp.text();
+        return json({ error: `Translation failed: ${geminiResp.status}`, details: t }, 500);
+      }
+
+      const geminiData = await geminiResp.json();
+      const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const parsed = extractFirstJsonObject(text);
+      if (!parsed?.first_message || !parsed?.system_prompt) {
+        return json({ error: "Failed to parse translation" }, 500);
+      }
+      return json(parsed);
+    }
+
     if (!description) {
       return json({ error: "description required" }, 400);
     }
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
       const fallback = fallbackConfig({ industryName, businessName, language, tone, description, starterPrompt });
       return json({ ...fallback, fallback: true, warning: "GEMINI_API_KEY missing in Edge Function secrets" }, 200);

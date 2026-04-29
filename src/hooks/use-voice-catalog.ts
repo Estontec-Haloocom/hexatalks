@@ -16,10 +16,15 @@ const FALLBACK_LANGS: LanguageOption[] = [
   { id: "en-US", label: "English (US)" },
   { id: "en-GB", label: "English (UK)" },
   { id: "hi-IN", label: "Hindi" },
+  { id: "ta-IN", label: "Tamil" },
+  { id: "te-IN", label: "Telugu" },
+  { id: "kn-IN", label: "Kannada" },
+  { id: "ml-IN", label: "Malayalam" },
   { id: "ar-SA", label: "Arabic" },
   { id: "es-ES", label: "Spanish" },
   { id: "fr-FR", label: "French" },
   { id: "de-DE", label: "German" },
+  { id: "pt-BR", label: "Portuguese" },
 ];
 
 const FALLBACK_ULTRAVOX_VOICES: VoiceOption[] = [
