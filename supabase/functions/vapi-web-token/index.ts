@@ -99,15 +99,15 @@ serve(async (req) => {
               label: textFrom(voice.name, voice.providerId, voice.slug, voice.id) || "Voice",
               description: [textFrom(voice.languageName, voice.language, voice.languageCode), voice.gender, voice.description]
                 .filter(Boolean)
-                .join(" · ") || "Natural voice",
+                .join(" · ") || "AI voice",
               provider: voice.provider || "11labs",
-              language: textFrom(voice.languageCode, voice.language),
-              gender: textFrom(voice.gender),
+              language: textFrom(voice.language, voice.languageCode, voice.locale),
+              gender: voice.gender,
               accent: textFrom(voice.accent, voice.languageName),
-              country: textFrom(voice.country, voice.region),
+              country: voice.country,
               previewUrl: textFrom(voice.previewUrl, voice.previewURL, voice.sampleUrl),
             }))
-            .filter((voice: any) => Boolean(voice.id))
+            .filter((v: any) => v.id)
         : fallbackVoices;
 
       const languagesMap = new Map<string, { id: string; label: string }>();

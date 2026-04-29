@@ -46,7 +46,7 @@ serve(async (req) => {
 
   try {
     const KEY = Deno.env.get("ULTRAVOX_API_KEY") || Deno.env.get("ULTRAVOX_KEY");
-    if (!KEY) return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Ultravox API key not configured." });
+    if (!KEY) return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Voice library API key not configured." });
 
     const allItems: any[] = [];
     let pageToken: string | null = null;
@@ -58,8 +58,8 @@ serve(async (req) => {
       });
       if (!r.ok) {
         const t = await r.text();
-        console.warn("ultravox voices fetch failed", r.status, t);
-        return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Could not fetch Ultravox voices." });
+        console.warn("voices fetch failed", r.status, t);
+        return json({ voices: FALLBACK_VOICES, languages: FALLBACK_LANGUAGES, warning: "Could not fetch voices." });
       }
       const data = await r.json();
       allItems.push(...readItems(data));
@@ -77,7 +77,7 @@ serve(async (req) => {
         return {
           id,
           label,
-          description: [text(v.description), lang, text(v.gender), text(v.accent)].filter(Boolean).join(" · ") || "Ultravox voice",
+          description: [text(v.description), lang, text(v.gender), text(v.accent)].filter(Boolean).join(" · ") || "AI voice",
           provider: "ultravox",
           language: lang,
           gender: text(v.gender),

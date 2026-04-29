@@ -360,16 +360,6 @@ const Settings = () => {
             </div>
           )}
         </Card>
-
-        <Card className="p-6">
-          <h3 className="font-semibold">Voice provider</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Active platform: <span className="font-medium text-foreground">{settings.voice_platform === "ultravox" ? "Ultravox" : "Vapi"}</span>.
-            {settings.voice_platform === "ultravox"
-              ? " All test, phone, and feedback calls route through Ultravox."
-              : " All test, phone, and feedback calls route through Vapi."}
-          </p>
-        </Card>
       </div>
 
       <Dialog open={shiftOpen} onOpenChange={setShiftOpen}>

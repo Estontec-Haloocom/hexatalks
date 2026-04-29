@@ -36,7 +36,7 @@ const FALLBACK_VAPI_VOICES: VoiceOption[] = [
 
 const fetchVapi = async (): Promise<CatalogResponse> => {
   const { data, error } = await supabase.functions.invoke("vapi-web-token", { body: { action: "config" } });
-  if (error) return { voices: [], languages: [], warning: "Vapi config failed" };
+  if (error) return { voices: [], languages: [], warning: "Voice library config failed" };
   return {
     voices: Array.isArray(data?.voices) ? data.voices : [],
     languages: Array.isArray(data?.languages) ? data.languages : [],
@@ -46,7 +46,7 @@ const fetchVapi = async (): Promise<CatalogResponse> => {
 
 const fetchUltravox = async (): Promise<CatalogResponse> => {
   const { data, error } = await supabase.functions.invoke("ultravox-voices", { body: {} });
-  if (error) return { voices: [], languages: [], warning: "Ultravox config failed" };
+  if (error) return { voices: [], languages: [], warning: "Voice library config failed" };
   return {
     voices: Array.isArray(data?.voices) ? data.voices : [],
     languages: Array.isArray(data?.languages) ? data.languages : [],
@@ -107,7 +107,7 @@ export const useVoiceCatalog = () => {
           warning:
             res.warning ||
             (!res.voices.length
-              ? `${platform === "ultravox" ? "Ultravox" : "Vapi"} returned no voices. Showing fallback list.`
+              ? `Selected voice platform returned no voices. Showing fallback list.`
               : undefined),
         };
       } else {
