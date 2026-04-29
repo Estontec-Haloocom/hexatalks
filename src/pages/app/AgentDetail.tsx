@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Mic, MicOff, Phone, Loader2, PlayCircle } from "lucide-react";
+import { ArrowLeft, Mic, MicOff, Phone, Loader2, PlayCircle, Play, Pause } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { Card } from "@/components/ui/card";
@@ -12,12 +12,32 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { INDUSTRIES } from "@/lib/industries";
-import { useVoiceCatalog } from "@/hooks/use-voice-catalog";
+import { useVoiceCatalog, type VoiceOption } from "@/hooks/use-voice-catalog";
 import { cn } from "@/lib/utils";
 import { startWebCall, type CallController } from "@/lib/voice-call";
 import { useDevSettings } from "@/hooks/use-dev-settings";
 import { usePromptBlocks } from "@/hooks/use-prompt-blocks";
 import { useOrgPromptConfig } from "@/hooks/use-org-prompt-config";
+
+const COUNTRIES = [
+  { id: "US", label: "🇺🇸 United States" },
+  { id: "GB", label: "🇬🇧 United Kingdom" },
+  { id: "IN", label: "🇮🇳 India" },
+  { id: "AU", label: "🇦🇺 Australia" },
+  { id: "CA", label: "🇨🇦 Canada" },
+  { id: "IE", label: "🇮🇪 Ireland" },
+  { id: "ZA", label: "🇿🇦 South Africa" },
+  { id: "DE", label: "🇩🇪 Germany" },
+  { id: "FR", label: "🇫🇷 France" },
+  { id: "ES", label: "🇪🇸 Spain" },
+  { id: "BR", label: "🇧🇷 Brazil" },
+  { id: "MX", label: "🇲🇽 Mexico" },
+];
+const ACCENTS = ["American", "British", "Indian", "Australian", "Irish", "Scottish", "South African", "Canadian", "Neutral"];
+const GENDERS = ["Female", "Male", "Neutral"];
+
+const tokenIncludes = (haystack: string | undefined, needle: string) =>
+  !!haystack && haystack.toLowerCase().includes(needle.toLowerCase());
 
 type Agent = any;
 type Turn = { role: "user" | "assistant"; text: string };
@@ -72,6 +92,53 @@ const AgentDetail = () => {
   const { settings: devSettings } = useDevSettings();
   const { blocks } = usePromptBlocks();
   const { config: orgPromptConfig } = useOrgPromptConfig();
+
+  // Voice filtering states
+  const [country, setCountry] = useState("US");
+  const [accent, setAccent] = useState("Neutral");
+  const [gender, setGender] = useState("Neutral");
+  const [voiceSearch, setVoiceSearch] = useState("");
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  const playPreview = (v: VoiceOption) => {
+    if (previewing === v.id && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+      previewAudioRef.current = null;
+      setPreviewing(null);
+      return;
+    }
+    if (!v.previewUrl) {
+      toast({ title: "Preview unavailable", description: `No preview clip available for ${v.label}.`, variant: "destructive" });
+      return;
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+    }
+    const audio = new Audio(v.previewUrl);
+    previewAudioRef.current = audio;
+    setPreviewing(v.id);
+    audio.onended = () => {
+      if (previewAudioRef.current === audio) previewAudioRef.current = null;
+      setPreviewing(null);
+    };
+    audio.onerror = () => {
+      if (previewAudioRef.current === audio) previewAudioRef.current = null;
+      setPreviewing(null);
+    };
+    audio.play().catch(() => setPreviewing(null));
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -177,6 +244,40 @@ const AgentDetail = () => {
   const voices = catalog?.voices ?? [];
   const languages = catalog?.languages ?? [];
 
+  const strictFilteredVoices = useMemo(() => {
+    if (!agent.language) return voices;
+    const langPrefix = agent.language.slice(0, 2).toLowerCase();
+    return voices.filter((v) => {
+      const langOk = !v.language || v.language.toLowerCase().startsWith(langPrefix);
+      const genderOk = gender === "Neutral" || !v.gender || tokenIncludes(v.gender, gender);
+      const accentOk =
+        accent === "Neutral" ||
+        !v.accent ||
+        tokenIncludes(v.accent, accent) ||
+        tokenIncludes(v.country, accent) ||
+        tokenIncludes(v.description, accent);
+      return langOk && genderOk && accentOk;
+    });
+  }, [voices, agent.language, gender, accent]);
+
+  const languageOnlyVoices = useMemo(() => {
+    if (!agent.language) return voices;
+    const langPrefix = agent.language.slice(0, 2).toLowerCase();
+    return voices.filter((v) => !v.language || v.language.toLowerCase().startsWith(langPrefix));
+  }, [voices, agent.language]);
+
+  const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : languageOnlyVoices;
+  const visibleVoices = useMemo(() => {
+    const q = voiceSearch.trim().toLowerCase();
+    if (!q) return baseVoices;
+    return baseVoices.filter((v) =>
+      `${v.label} ${v.description} ${v.id} ${v.accent ?? ""} ${v.gender ?? ""} ${v.country ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [baseVoices, voiceSearch]);
+
+  const selectedVoice: VoiceOption | undefined =
+    visibleVoices.find((v) => v.id === agent.voice_id) ?? visibleVoices[0];
+
   return (
     <>
       <PageHeader
@@ -244,24 +345,100 @@ const AgentDetail = () => {
                 <Label>System prompt</Label>
                 <Textarea rows={10} value={agent.system_prompt} onChange={(e) => setAgent({ ...agent, system_prompt: e.target.value })} className="font-mono text-xs" />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Character voice</Label>
-                  <select value={agent.voice_id} onChange={(e) => setAgent({ ...agent, voice_id: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {voices.map((v) => (
-                      <option key={`${v.provider}:${v.id}`} value={v.id}>
-                        {v.label} — {v.description}
-                      </option>
-                    ))}
-                  </select>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold mb-3">Voice & language</h3>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label>Country / market</Label>
+                      <select value={country} onChange={(e) => setCountry(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                        {COUNTRIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Accent / dialect</Label>
+                      <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                        {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Voice gender</Label>
+                      <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                        {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Language</Label>
-                  <select value={agent.language || "en-US"} onChange={(e) => setAgent({ ...agent, language: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {languages.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-                  </select>
+
+                <div>
+                  <Label className="mb-3 block">Language</Label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {languages.map((l) => (
+                      <button key={l.id} onClick={() => setAgent({ ...agent, language: l.id })} className={cn(
+                        "rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                        agent.language === l.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
+                      )}>{l.label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <Label>Character voice</Label>
+                    <span className="text-xs text-muted-foreground">{visibleVoices.length} match{visibleVoices.length === 1 ? "" : "es"}</span>
+                  </div>
+                  <div className="mb-3">
+                    <Input
+                      value={voiceSearch}
+                      onChange={(e) => setVoiceSearch(e.target.value)}
+                      placeholder="Search voices by name, accent, gender..."
+                    />
+                  </div>
+                  {!strictFilteredVoices.length && !!languageOnlyVoices.length && (
+                    <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                      No exact accent/gender match found. Showing language-matched voices.
+                    </div>
+                  )}
+                  {catalog?.warning && (
+                    <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                      {catalog.warning}
+                    </div>
+                  )}
+                  {visibleVoices.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                      No voices found for current filters/search. Try changing country, accent, gender, or search text.
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2 max-h-[420px] overflow-y-auto pr-1">
+                      {visibleVoices.map((v) => (
+                      <div key={`${v.provider}-${v.id}`} className={cn(
+                        "flex items-start gap-3 rounded-lg border p-3 text-left transition-all",
+                        (selectedVoice?.id ?? agent.voice_id) === v.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
+                      )}>
+                        <button onClick={() => setAgent({ ...agent, voice_id: v.id, voice_provider: v.provider })} className="flex-1 text-left">
+                          <div className="font-medium text-sm">{v.label}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-2">{v.description}</div>
+                          {(v.gender || v.accent) && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {v.gender && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px]">{v.gender}</span>}
+                              {v.accent && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px]">{v.accent}</span>}
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => playPreview(v)}
+                          className={cn(
+                            "grid h-8 w-8 shrink-0 place-items-center rounded-full text-primary-foreground hover:opacity-90",
+                            v.previewUrl ? "bg-primary" : "bg-muted",
+                          )}
+                          aria-label={previewing === v.id ? "Pause preview" : "Play preview"}
+                        >
+                          {previewing === v.id ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save changes</Button>
