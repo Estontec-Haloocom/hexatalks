@@ -16,6 +16,7 @@ const FALLBACK_LANGS: LanguageOption[] = [
   { id: "en-US", label: "English (US)" },
   { id: "en-GB", label: "English (UK)" },
   { id: "hi-IN", label: "Hindi" },
+  { id: "ar-SA", label: "Arabic" },
   { id: "es-ES", label: "Spanish" },
   { id: "fr-FR", label: "French" },
   { id: "de-DE", label: "German" },
@@ -87,6 +88,8 @@ export const useVoiceCatalog = () => {
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed && Array.isArray(parsed.voices) && parsed.voices.length > 0) {
+            // Ensure fallback languages (like Arabic) are always present even in old cache
+            parsed.languages = dedupeBy([...(parsed.languages || []), ...FALLBACK_LANGS], (l) => l.id);
             return parsed as CatalogResponse;
           }
         }
