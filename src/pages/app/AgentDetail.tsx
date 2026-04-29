@@ -238,14 +238,11 @@ const AgentDetail = () => {
     }
   };
 
-  if (!agent) return <div className="grid h-[60vh] place-items-center text-muted-foreground">Loading…</div>;
-
-  const ind = INDUSTRIES.find((i) => i.id === agent.industry);
   const voices = catalog?.voices ?? [];
   const languages = catalog?.languages ?? [];
 
   const strictFilteredVoices = useMemo(() => {
-    if (!agent.language) return voices;
+    if (!agent?.language) return voices;
     const langPrefix = agent.language.slice(0, 2).toLowerCase();
     return voices.filter((v) => {
       const langOk = !v.language || v.language.toLowerCase().startsWith(langPrefix);
@@ -258,13 +255,13 @@ const AgentDetail = () => {
         tokenIncludes(v.description, accent);
       return langOk && genderOk && accentOk;
     });
-  }, [voices, agent.language, gender, accent]);
+  }, [voices, agent?.language, gender, accent]);
 
   const languageOnlyVoices = useMemo(() => {
-    if (!agent.language) return voices;
+    if (!agent?.language) return voices;
     const langPrefix = agent.language.slice(0, 2).toLowerCase();
     return voices.filter((v) => !v.language || v.language.toLowerCase().startsWith(langPrefix));
-  }, [voices, agent.language]);
+  }, [voices, agent?.language]);
 
   const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : languageOnlyVoices;
   const visibleVoices = useMemo(() => {
@@ -276,7 +273,11 @@ const AgentDetail = () => {
   }, [baseVoices, voiceSearch]);
 
   const selectedVoice: VoiceOption | undefined =
-    visibleVoices.find((v) => v.id === agent.voice_id) ?? visibleVoices[0];
+    visibleVoices.find((v) => v.id === agent?.voice_id) ?? visibleVoices[0];
+
+  if (!agent) return <div className="grid h-[60vh] place-items-center text-muted-foreground">Loading…</div>;
+
+  const ind = INDUSTRIES.find((i) => i.id === agent.industry);
 
   return (
     <>
