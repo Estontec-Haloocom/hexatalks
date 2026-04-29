@@ -143,7 +143,14 @@ serve(async (req) => {
     const voiceProvider = agent.voice_provider || "11labs";
 
     const fullLang = (agent.language || "en-US") as string;
-    const langShort = fullLang.split("-")[0].toLowerCase();
+    const validNovaLangs = ["bg", "ca", "zh", "zh-CN", "zh-HK", "zh-Hans", "zh-TW", "zh-Hant", "cs", "da", "da-DK", "nl", "en", "en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "et", "fi", "nl-BE", "fr", "fr-CA", "de", "de-CH", "el", "hi", "hu", "id", "it", "ja", "ko", "ko-KR", "lv", "lt", "ms", "multi", "no", "pl", "pt", "pt-BR", "ro", "ru", "sk", "es", "es-419", "sv", "sv-SE", "th", "th-TH", "tr", "uk", "vi"];
+    let langShort = fullLang;
+    if (!validNovaLangs.includes(langShort)) {
+        langShort = fullLang.split("-")[0].toLowerCase();
+        if (!validNovaLangs.includes(langShort)) {
+            langShort = "multi";
+        }
+    }
     const LANG_NAMES: Record<string, string> = {
       en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
       pt: "Portuguese", it: "Italian", ja: "Japanese", zh: "Mandarin Chinese",
