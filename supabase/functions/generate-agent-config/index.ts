@@ -106,6 +106,12 @@ ${first_message}`;
       if (!geminiResp.ok) {
         const t = await geminiResp.text();
         console.error("Gemini translation error:", geminiResp.status, t);
+        
+        // Handle Gemini rate limits or high demand errors smoothly without crashing
+        if (geminiResp.status === 503 || geminiResp.status === 429) {
+           return json({ error: "Gemini is currently experiencing high demand. Please try again later.", details: t }, 200);
+        }
+
         let errorMsg = `Translation failed: ${geminiResp.status}`;
         try {
             const parsedError = JSON.parse(t);

@@ -581,18 +581,18 @@ const AgentDetail = () => {
       </div>
 
       <Dialog open={translationPromptOpen} onOpenChange={(open) => !isTranslating && setTranslationPromptOpen(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Translate Prompt?</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="w-[90vw] max-w-sm rounded-2xl p-5 sm:max-w-md sm:p-6">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-lg">Translate Prompt?</DialogTitle>
+            <DialogDescription className="mt-2 text-sm leading-relaxed">
               You've selected <strong>{pendingLanguage?.label}</strong>. Would you like to use AI to translate your existing First Message and System Prompt into this language?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-4 flex sm:justify-end gap-2">
-            <Button variant="ghost" onClick={() => confirmTranslation(false)} disabled={isTranslating}>
+          <DialogFooter className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="ghost" onClick={() => confirmTranslation(false)} disabled={isTranslating} className="w-full sm:w-auto">
               No, keep current text
             </Button>
-            <Button onClick={() => confirmTranslation(true)} disabled={isTranslating}>
+            <Button onClick={() => confirmTranslation(true)} disabled={isTranslating} className="w-full sm:w-auto">
               {isTranslating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Yes, translate
             </Button>
