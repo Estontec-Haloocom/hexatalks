@@ -33,7 +33,22 @@ const COUNTRIES = [
   { id: "BR", label: "🇧🇷 Brazil" },
   { id: "MX", label: "🇲🇽 Mexico" },
 ];
-const ACCENTS = ["American", "British", "Indian", "Australian", "Irish", "Scottish", "South African", "Canadian", "Neutral"];
+
+const COUNTRY_ACCENT_MAP: Record<string, string[]> = {
+  US: ["American", "Neutral"],
+  GB: ["British", "Scottish", "Neutral"],
+  IN: ["Indian", "Neutral"],
+  AU: ["Australian", "Neutral"],
+  CA: ["Canadian", "Neutral"],
+  IE: ["Irish", "Neutral"],
+  ZA: ["South African", "Neutral"],
+  DE: ["German", "Neutral"],
+  FR: ["French", "Neutral"],
+  ES: ["Spanish", "Neutral"],
+  BR: ["Neutral"],
+  MX: ["Mexican", "Neutral"],
+};
+
 const GENDERS = ["Female", "Male", "Neutral"];
 
 const tokenIncludes = (haystack: string | undefined, needle: string) =>
@@ -95,11 +110,18 @@ const AgentDetail = () => {
 
   // Voice filtering states
   const [country, setCountry] = useState("US");
-  const [accent, setAccent] = useState("Neutral");
+  const availableAccents = COUNTRY_ACCENT_MAP[country] || ["Neutral"];
+  const [accent, setAccent] = useState(availableAccents[0]);
   const [gender, setGender] = useState("Neutral");
   const [voiceSearch, setVoiceSearch] = useState("");
   const [previewing, setPreviewing] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!availableAccents.includes(accent)) {
+      setAccent(availableAccents[0]);
+    }
+  }, [country, availableAccents, accent]);
 
   useEffect(() => {
     return () => {
@@ -359,7 +381,7 @@ const AgentDetail = () => {
                     <div className="space-y-1.5">
                       <Label>Accent / dialect</Label>
                       <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                        {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                        {availableAccents.map((a) => <option key={a} value={a}>{a}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1.5">

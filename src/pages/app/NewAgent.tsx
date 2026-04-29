@@ -58,7 +58,21 @@ const COUNTRIES = [
   { id: "MX", label: "🇲🇽 Mexico" },
 ];
 
-const ACCENTS = ["American", "British", "Indian", "Australian", "Irish", "Scottish", "South African", "Canadian", "Neutral"];
+const COUNTRY_ACCENT_MAP: Record<string, string[]> = {
+  US: ["American", "Neutral"],
+  GB: ["British", "Scottish", "Neutral"],
+  IN: ["Indian", "Neutral"],
+  AU: ["Australian", "Neutral"],
+  CA: ["Canadian", "Neutral"],
+  IE: ["Irish", "Neutral"],
+  ZA: ["South African", "Neutral"],
+  DE: ["German", "Neutral"],
+  FR: ["French", "Neutral"],
+  ES: ["Spanish", "Neutral"],
+  BR: ["Neutral"],
+  MX: ["Mexican", "Neutral"],
+};
+
 const GENDERS = ["Female", "Male", "Neutral"];
 const TONES = ["Professional & warm", "Friendly & casual", "Energetic & upbeat", "Calm & reassuring", "Confident & direct", "Empathetic & soft"];
 
@@ -73,7 +87,8 @@ const NewAgent = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [country, setCountry] = useState("US");
-  const [accent, setAccent] = useState("American");
+  const availableAccents = COUNTRY_ACCENT_MAP[country] || ["Neutral"];
+  const [accent, setAccent] = useState(availableAccents[0]);
   const [gender, setGender] = useState("Female");
   const [tone, setTone] = useState(TONES[0]);
   const [useCases, setUseCases] = useState("");
@@ -146,6 +161,12 @@ const NewAgent = () => {
   }, [baseVoices, voiceSearch]);
   const selectedVoice: VoiceOption | undefined =
     visibleVoices.find((v) => v.id === voiceId) ?? visibleVoices[0];
+
+  useEffect(() => {
+    if (!availableAccents.includes(accent)) {
+      setAccent(availableAccents[0]);
+    }
+  }, [country, availableAccents, accent]);
 
   useEffect(() => {
     if (!voiceId && visibleVoices.length > 0) setVoiceId(visibleVoices[0].id);
@@ -637,11 +658,11 @@ const NewAgent = () => {
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Accent / dialect</Label>
-                      <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                        {ACCENTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                      </select>
-                    </div>
+                    <Label>Accent / dialect</Label>
+                    <select value={accent} onChange={(e) => setAccent(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                      {availableAccents.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
                     <div className="space-y-1.5">
                       <Label>Voice gender</Label>
                       <select value={gender} onChange={(e) => setGender(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
