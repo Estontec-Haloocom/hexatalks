@@ -243,14 +243,36 @@ serve(async (req) => {
     }
 
     // Preferred: native Vapi PSTN outbound (most reliable speech path).
-    const VAPI_OUTBOUND_PHONE_NUMBER_ID = Deno.env.get("VAPI_OUTBOUND_PHONE_NUMBER_ID");
-    if (VAPI_OUTBOUND_PHONE_NUMBER_ID) {
+    let outboundPhoneNumberId = Deno.env.get("VAPI_OUTBOUND_PHONE_NUMBER_ID");
+
+    if (useCustomKeys && settings?.vapi_private_key) {
+      try {
+        const pnRes = await fetch("https://api.vapi.ai/phone-number", {
+          headers: { Authorization: `Bearer ${settings.vapi_private_key}` }
+        });
+        if (pnRes.ok) {
+          const pns = await pnRes.json();
+          if (Array.isArray(pns) && pns.length > 0) {
+            outboundPhoneNumberId = pns[0].id;
+          } else {
+            outboundPhoneNumberId = undefined; // User has no phone numbers configured
+          }
+        } else {
+          outboundPhoneNumberId = undefined;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch custom Vapi phone numbers", e);
+        outboundPhoneNumberId = undefined;
+      }
+    }
+
+    if (outboundPhoneNumberId) {
       const nativeCreate = await fetch("https://api.vapi.ai/call", {
         method: "POST",
         headers: { Authorization: `Bearer ${VAPI_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           customer: { number: cleanToNumber },
-          phoneNumberId: VAPI_OUTBOUND_PHONE_NUMBER_ID,
+          phoneNumberId: outboundPhoneNumberId,
           assistant: {
             name: agent.name,
             firstMessage: agent.first_message,
