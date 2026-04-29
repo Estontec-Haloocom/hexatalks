@@ -251,11 +251,13 @@ serve(async (req) => {
               maxTokens: 140,
               messages: [{ role: "system", content: systemPromptLocalized }],
             },
-            voice: {
-              provider: voiceProvider,
-              voiceId,
-              ...(voiceProvider === "11labs" && !voiceId.includes("vapi") ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
-            },
+            voice: voiceProvider === "vapi"
+              ? { voiceId }
+              : {
+                  provider: voiceProvider,
+                  voiceId,
+                  ...(voiceProvider === "11labs" && !voiceId.includes("vapi") ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
+                },
             transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
             startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
             stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },

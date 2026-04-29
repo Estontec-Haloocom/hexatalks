@@ -61,7 +61,7 @@ serve(async (req) => {
       maxDuration: `${Math.max(30, Number(maxDurationSec) || 600)}s`,
       medium: medium === "twilio" ? { twilio: {} } : { webRtc: {} },
     };
-    if (voice) payload.voice = voice;
+    if (voice) payload.systemVoice = voice;
     if (languageHint) payload.languageHint = languageHint;
 
     const r = await fetch("https://api.ultravox.ai/api/calls", {

@@ -83,7 +83,7 @@ serve(async (req) => {
           if (!res.ok) return [];
           const data = await res.json();
           // Ensure we inject provider from the voice object to make it compatible
-          return listFrom(data).map((v: any) => ({ ...v, provider: v.provider || "11labs" }));
+          return listFrom(data).map((v: any) => ({ ...v, isCustomVapi: true, provider: "vapi" }));
         } catch {
           return [];
         }
@@ -95,7 +95,7 @@ serve(async (req) => {
       const voices = voiceItems.length
         ? voiceItems
             .map((voice: any) => ({
-              id: textFrom(voice.providerId, voice.voiceId, voice.externalId, voice.slug, voice.id),
+              id: voice.isCustomVapi ? voice.id : textFrom(voice.providerId, voice.voiceId, voice.externalId, voice.slug, voice.id),
               label: textFrom(voice.name, voice.providerId, voice.slug, voice.id) || "Voice",
               description: [textFrom(voice.languageName, voice.language, voice.languageCode), voice.gender, voice.description]
                 .filter(Boolean)

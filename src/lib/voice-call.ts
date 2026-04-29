@@ -71,7 +71,15 @@ export const startWebCall = async (
     .join("\n\n");
   const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
 
-  if (platform === "ultravox") {
+  // Determine actual platform: if the agent's voice explicitly requires a certain platform, use it.
+  const actualPlatform = agent.voice_provider === "ultravox" ? "ultravox" : 
+                         (agent.voice_provider && agent.voice_provider !== "11labs" && agent.voice_provider !== "playht" && agent.voice_provider !== "azure" && agent.voice_provider !== "deepgram" && agent.voice_provider !== "openai") 
+                         ? platform : platform;
+
+  // Force Ultravox if the provider is specifically ultravox to prevent Vapi from crashing on an ultravox voice
+  const routeToUltravox = actualPlatform === "ultravox" || agent.voice_provider === "ultravox";
+
+  if (routeToUltravox) {
     // If the agent was configured with an Ultravox voice, use it directly.
     // Otherwise (legacy Vapi name) map to a sensible Ultravox equivalent.
     const isUltravoxVoice = agent.voice_provider === "ultravox";
@@ -136,10 +144,9 @@ export const startWebCall = async (
 
   emit("status", "connecting");
   
-  const vapiVoiceConfig: any = {
-    provider: voiceProvider,
-    voiceId: voiceId
-  };
+  const vapiVoiceConfig: any = voiceProvider === "vapi" 
+    ? { voiceId: voiceId } 
+    : { provider: voiceProvider, voiceId: voiceId };
 
   // Only append specific 11labs config if it's an actual 11labs external voice, not a custom vapi cloned voice.
   // Many Vapi specific/custom voices will fail if arbitrary 11labs config params are attached to them.
