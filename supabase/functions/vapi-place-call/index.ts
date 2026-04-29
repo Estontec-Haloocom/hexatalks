@@ -166,7 +166,7 @@ serve(async (req) => {
       const ultravoxPayload: Record<string, unknown> = {
         systemPrompt: greeting + systemPromptLocalized,
         model: "fixie-ai/ultravox",
-        voice: uvVoice,
+        systemVoice: uvVoice,
         languageHint: langShort,
         temperature: Number(agent.temperature ?? 0.25),
         firstSpeaker: "FIRST_SPEAKER_AGENT",
@@ -178,9 +178,11 @@ serve(async (req) => {
         body: JSON.stringify(ultravoxPayload),
       });
       let ud = await readJson(r);
-      if (!r.ok && agent.voice_id) {
-        console.warn("Ultravox call create failed, retrying with default voice", r.status, ud);
-        delete ultravoxPayload.voice;
+      if (!r.ok && (agent.voice_id || langShort)) {
+        console.warn("Ultravox call create failed, retrying with minimal payload", r.status, ud);
+        delete ultravoxPayload.systemVoice;
+        delete ultravoxPayload.voice; // just in case
+        delete ultravoxPayload.languageHint;
         const retry = await fetch("https://api.ultravox.ai/api/calls", {
           method: "POST",
           headers: { "X-API-Key": ULTRAVOX_KEY, "Content-Type": "application/json" },

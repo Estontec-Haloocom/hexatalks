@@ -73,10 +73,12 @@ serve(async (req) => {
       body: JSON.stringify(payload),
     });
     let data = await r.json();
-    // If the chosen voice doesn't exist, retry once without a voice (use Ultravox default).
-    if (!r.ok && voice && JSON.stringify(data).toLowerCase().includes("voice")) {
-      console.warn("ultravox voice rejected, retrying without voice:", voice, data);
-      delete (payload as any).voice;
+    // If the call fails and a voice was provided, retry once without the voice to ensure the call connects.
+    if (!r.ok && (voice || languageHint)) {
+      console.warn("ultravox call failed, retrying with minimal payload:", voice, data);
+      delete (payload as any).systemVoice;
+      delete (payload as any).voice; // just in case
+      delete (payload as any).languageHint;
       const r2 = await fetch("https://api.ultravox.ai/api/calls", {
         method: "POST",
         headers: { "X-API-Key": KEY, "Content-Type": "application/json" },
