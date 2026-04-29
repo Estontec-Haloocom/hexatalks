@@ -76,8 +76,14 @@ const COUNTRY_ACCENT_MAP: Record<string, string[]> = {
 const GENDERS = ["Female", "Male", "Neutral"];
 const TONES = ["Professional & warm", "Friendly & casual", "Energetic & upbeat", "Calm & reassuring", "Confident & direct", "Empathetic & soft"];
 
-const tokenIncludes = (haystack: string | undefined, needle: string) =>
-  !!haystack && haystack.toLowerCase().includes(needle.toLowerCase());
+const wordIncludes = (haystack: string | undefined, needle: string) => {
+  if (!haystack) return false;
+  try {
+    return new RegExp(`\\b${needle}\\b`, 'i').test(haystack);
+  } catch {
+    return haystack.toLowerCase().includes(needle.toLowerCase());
+  }
+};
 
 const NewAgent = () => {
   const [step, setStep] = useState(0);
@@ -131,27 +137,26 @@ const NewAgent = () => {
   const allVoices = catalog?.voices ?? [];
   const languages = catalog?.languages ?? [];
 
-  const strictFilteredVoices = useMemo(() => {
-    const langPrefix = language.slice(0, 2).toLowerCase();
+  const baseVoices = useMemo(() => {
     return allVoices.filter((v) => {
-      const langOk = !v.language || v.language.toLowerCase().startsWith(langPrefix);
-      const genderOk = gender === "Neutral" || !v.gender || tokenIncludes(v.gender, gender);
-      const accentOk =
-        accent === "Neutral" ||
-        !v.accent ||
-        tokenIncludes(v.accent, accent) ||
-        tokenIncludes(v.country, accent) ||
-        tokenIncludes(v.description, accent);
+      const vLang = (v.language || "").toLowerCase();
+      const uLang = language.toLowerCase();
+      const langOk = !vLang || 
+        vLang === uLang || 
+        vLang === uLang.slice(0, 2) || 
+        uLang === vLang.slice(0, 2);
+
+      const isNeutralGender = gender === "Neutral";
+      const matchesGender = wordIncludes(v.gender, gender) || wordIncludes(v.description, gender) || wordIncludes(v.label, gender);
+      const genderOk = isNeutralGender || matchesGender;
+
+      const isNeutralAccent = accent === "Neutral";
+      const matchesAccent = wordIncludes(v.accent, accent) || wordIncludes(v.country, accent) || wordIncludes(v.description, accent) || wordIncludes(v.label, accent);
+      const accentOk = isNeutralAccent || matchesAccent;
+
       return langOk && genderOk && accentOk;
     });
   }, [allVoices, language, gender, accent]);
-
-  const languageOnlyVoices = useMemo(() => {
-    const langPrefix = language.slice(0, 2).toLowerCase();
-    return allVoices.filter((v) => !v.language || v.language.toLowerCase().startsWith(langPrefix));
-  }, [allVoices, language]);
-
-  const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : languageOnlyVoices;
   const visibleVoices = useMemo(() => {
     const q = voiceSearch.trim().toLowerCase();
     if (!q) return baseVoices;

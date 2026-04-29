@@ -51,8 +51,14 @@ const COUNTRY_ACCENT_MAP: Record<string, string[]> = {
 
 const GENDERS = ["Female", "Male", "Neutral"];
 
-const tokenIncludes = (haystack: string | undefined, needle: string) =>
-  !!haystack && haystack.toLowerCase().includes(needle.toLowerCase());
+const wordIncludes = (haystack: string | undefined, needle: string) => {
+  if (!haystack) return false;
+  try {
+    return new RegExp(`\\b${needle}\\b`, 'i').test(haystack);
+  } catch {
+    return haystack.toLowerCase().includes(needle.toLowerCase());
+  }
+};
 
 type Agent = any;
 type Turn = { role: "user" | "assistant"; text: string };
@@ -263,29 +269,27 @@ const AgentDetail = () => {
   const voices = catalog?.voices ?? [];
   const languages = catalog?.languages ?? [];
 
-  const strictFilteredVoices = useMemo(() => {
+  const baseVoices = useMemo(() => {
     if (!agent?.language) return voices;
-    const langPrefix = agent.language.slice(0, 2).toLowerCase();
     return voices.filter((v) => {
-      const langOk = !v.language || v.language.toLowerCase().startsWith(langPrefix);
-      const genderOk = gender === "Neutral" || !v.gender || tokenIncludes(v.gender, gender);
-      const accentOk =
-        accent === "Neutral" ||
-        !v.accent ||
-        tokenIncludes(v.accent, accent) ||
-        tokenIncludes(v.country, accent) ||
-        tokenIncludes(v.description, accent);
+      const vLang = (v.language || "").toLowerCase();
+      const uLang = agent.language.toLowerCase();
+      const langOk = !vLang || 
+        vLang === uLang || 
+        vLang === uLang.slice(0, 2) || 
+        uLang === vLang.slice(0, 2);
+
+      const isNeutralGender = gender === "Neutral";
+      const matchesGender = wordIncludes(v.gender, gender) || wordIncludes(v.description, gender) || wordIncludes(v.label, gender);
+      const genderOk = isNeutralGender || matchesGender;
+
+      const isNeutralAccent = accent === "Neutral";
+      const matchesAccent = wordIncludes(v.accent, accent) || wordIncludes(v.country, accent) || wordIncludes(v.description, accent) || wordIncludes(v.label, accent);
+      const accentOk = isNeutralAccent || matchesAccent;
+
       return langOk && genderOk && accentOk;
     });
   }, [voices, agent?.language, gender, accent]);
-
-  const languageOnlyVoices = useMemo(() => {
-    if (!agent?.language) return voices;
-    const langPrefix = agent.language.slice(0, 2).toLowerCase();
-    return voices.filter((v) => !v.language || v.language.toLowerCase().startsWith(langPrefix));
-  }, [voices, agent?.language]);
-
-  const baseVoices = strictFilteredVoices.length ? strictFilteredVoices : languageOnlyVoices;
   const visibleVoices = useMemo(() => {
     const q = voiceSearch.trim().toLowerCase();
     if (!q) return baseVoices;
@@ -417,11 +421,6 @@ const AgentDetail = () => {
                       placeholder="Search voices by name, accent, gender..."
                     />
                   </div>
-                  {!strictFilteredVoices.length && !!languageOnlyVoices.length && (
-                    <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-                      No exact accent/gender match found. Showing language-matched voices.
-                    </div>
-                  )}
                   {catalog?.warning && (
                     <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
                       {catalog.warning}
