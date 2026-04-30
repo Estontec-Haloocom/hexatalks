@@ -145,6 +145,40 @@ serve(async (req) => {
     const voiceProvider = agent.voice_provider || "11labs";
 
     const fullLang = (agent.language || "en-US") as string;
+    const primaryLang = fullLang.split(",")[0];
+
+    const parseDelimited = (text: string | null | undefined, defaultLang: string) => {
+      if (!text) return { [defaultLang]: "" };
+      if (!text.includes("===LANG:")) {
+        return { [defaultLang]: text };
+      }
+      const result: Record<string, string> = {};
+      const parts = text.split(/===LANG:([a-zA-Z0-9-]+)===/);
+      for (let i = 1; i < parts.length; i += 2) {
+        result[parts[i]] = parts[i+1].trim();
+      }
+      return result;
+    };
+
+    const sysPrompts = parseDelimited(agent.system_prompt, primaryLang);
+    const firstMsgs = parseDelimited(agent.first_message, primaryLang);
+
+    let combinedSystemPrompt = "";
+    let combinedFirstMessage = "";
+    const langs = fullLang.split(",");
+
+    if (langs.length > 1) {
+      combinedSystemPrompt = "You are a multilingual assistant. Adapt your language and rules based on the language the user speaks.\n\n";
+      langs.forEach((l) => {
+        if (sysPrompts[l]) combinedSystemPrompt += `## Rules for language ${l}:\n${sysPrompts[l]}\n\n`;
+        if (firstMsgs[l]) combinedFirstMessage += firstMsgs[l] + " ";
+      });
+    } else {
+      combinedSystemPrompt = sysPrompts[primaryLang] || "";
+      combinedFirstMessage = firstMsgs[primaryLang] || "";
+    }
+    combinedFirstMessage = combinedFirstMessage.trim();
+
     const validNovaLangs = ["bg", "ca", "zh", "zh-CN", "zh-HK", "zh-Hans", "zh-TW", "zh-Hant", "cs", "da", "da-DK", "nl", "en", "en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "et", "fi", "nl-BE", "fr", "fr-CA", "de", "de-CH", "el", "hi", "hu", "id", "it", "ja", "ko", "ko-KR", "lv", "lt", "ms", "multi", "no", "pl", "pt", "pt-BR", "ro", "ru", "sk", "es", "es-419", "sv", "sv-SE", "th", "th-TH", "tr", "uk", "vi"];
     let langShort = fullLang;
     let languageDirective = "";
@@ -169,7 +203,7 @@ serve(async (req) => {
         languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
     }
     
-    const systemPromptLocalized = [agent.system_prompt || "", blocksText, orgPromptIdeText, languageDirective, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
+    const systemPromptLocalized = [combinedSystemPrompt, blocksText, orgPromptIdeText, languageDirective, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
 
     if (platform === "ultravox") {
       const ULTRAVOX_KEY = (useCustomKeys ? settings?.ultravox_api_key : undefined) || Deno.env.get("ULTRAVOX_API_KEY");
@@ -179,7 +213,7 @@ serve(async (req) => {
         ? agent.voice_id
         : ULTRAVOX_FALLBACK_MAP[String(agent.voice_id ?? "").toLowerCase()] ?? ULTRAVOX_DEFAULT_VOICE;
 
-      const greeting = agent.first_message ? `# Greeting\nStart by saying: "${agent.first_message}"\n\n` : "";
+      const greeting = combinedFirstMessage ? `# Greeting\nStart by saying: "${combinedFirstMessage}"\n\n` : "";
       const ultravoxPayload: Record<string, unknown> = {
         systemPrompt: greeting + systemPromptLocalized,
         model: "fixie-ai/ultravox",
@@ -283,7 +317,7 @@ serve(async (req) => {
           phoneNumberId: outboundPhoneNumberId,
           assistant: {
             name: agent.name,
-            firstMessage: agent.first_message,
+            firstMessage: combinedFirstMessage,
             firstMessageMode: "assistant-speaks-first",
             model: {
               provider: agent.model_provider || "openai",
@@ -338,7 +372,7 @@ serve(async (req) => {
         transport: { provider: "vapi.websocket" },
         assistant: {
           name: agent.name,
-          firstMessage: agent.first_message,
+          firstMessage: combinedFirstMessage,
           firstMessageMode: "assistant-speaks-first",
           model: {
             provider: agent.model_provider || "openai",

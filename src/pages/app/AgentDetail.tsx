@@ -99,6 +99,26 @@ const VOICE_MAP: Record<string, string> = {
   leo: "pNInz6obpgDQGcFmaJgB",
 };
 
+// Helper for delimited multi-language prompts
+const parseDelimited = (text: string | null | undefined, defaultLang: string) => {
+  if (!text) return { [defaultLang]: "" };
+  if (!text.includes("===LANG:")) {
+    return { [defaultLang]: text };
+  }
+  const result: Record<string, string> = {};
+  const parts = text.split(/===LANG:([a-zA-Z0-9-]+)===/);
+  for (let i = 1; i < parts.length; i += 2) {
+    result[parts[i]] = parts[i+1].trim();
+  }
+  return result;
+};
+
+const serializeDelimited = (obj: Record<string, string>) => {
+  const keys = Object.keys(obj);
+  if (keys.length === 1) return obj[keys[0]];
+  return keys.map((lang) => `===LANG:${lang}===\n${obj[lang]}`).join("\n\n");
+};
+
 const AgentDetail = () => {
   const { id } = useParams();
   const { toast } = useToast();
@@ -132,11 +152,20 @@ const AgentDetail = () => {
   const [previewing, setPreviewing] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  const [activeLangTab, setActiveLangTab] = useState<string>("");
+
   useEffect(() => {
     if (!availableAccents.includes(accent)) {
       setAccent(availableAccents[0]);
     }
   }, [country, availableAccents, accent]);
+
+  useEffect(() => {
+    if (agent && !activeLangTab) {
+      const langs = agent.language?.split(",") || ["en-US"];
+      setActiveLangTab(langs[0]);
+    }
+  }, [agent, activeLangTab]);
 
   useEffect(() => {
     return () => {
@@ -218,11 +247,13 @@ const AgentDetail = () => {
     const { newLangs } = pendingLanguage;
     const newLangsLabels = newLangs.map((id: string) => languages.find((l) => l.id === id)?.label || id);
     const newLangStr = newLangs.join(",");
+    const primaryLang = newLangs[0];
 
     if (!shouldTranslate) {
       setAgent({ ...agent, language: newLangStr });
       setTranslationPromptOpen(false);
       setPendingLanguage(null);
+      setActiveLangTab(pendingLanguage.id);
       return;
     }
 
@@ -230,10 +261,10 @@ const AgentDetail = () => {
     try {
       const { data, error } = await supabase.functions.invoke("generate-agent-config", {
         body: {
-          action: "translate",
-          system_prompt: agent.system_prompt || " ",
-          first_message: agent.first_message || " ",
-          target_language: newLangsLabels.join(" and "),
+          action: "translate_single",
+          system_prompt: parseDelimited(agent.system_prompt, primaryLang)[primaryLang] || " ",
+          first_message: parseDelimited(agent.first_message, primaryLang)[primaryLang] || " ",
+          target_language: pendingLanguage.label,
         }
       });
 
@@ -246,13 +277,20 @@ const AgentDetail = () => {
         throw new Error(data.error);
       }
 
+      const currentSys = parseDelimited(agent.system_prompt, primaryLang);
+      const currentFirst = parseDelimited(agent.first_message, primaryLang);
+      
+      currentSys[pendingLanguage.id] = data.system_prompt;
+      currentFirst[pendingLanguage.id] = data.first_message;
+
       setAgent({
         ...agent,
         language: newLangStr,
-        system_prompt: data.system_prompt || agent.system_prompt,
-        first_message: data.first_message || agent.first_message,
+        system_prompt: serializeDelimited(currentSys),
+        first_message: serializeDelimited(currentFirst),
       });
-      toast({ title: "Translated successfully", description: `Your prompt has been updated for ${newLangsLabels.join(" and ")}.` });
+      setActiveLangTab(pendingLanguage.id);
+      toast({ title: "Translated successfully", description: `Your prompt has been translated for ${pendingLanguage.label}.` });
     } catch (err: any) {
       console.error("Translation failed:", err);
       toast({ title: "Translation failed", description: err.message || "Could not translate prompt.", variant: "destructive" });
@@ -263,6 +301,14 @@ const AgentDetail = () => {
       setTranslationPromptOpen(false);
       setPendingLanguage(null);
     }
+  };
+
+  const handlePromptChange = (field: "system_prompt" | "first_message", value: string) => {
+    const currentLangs = agent.language?.split(",") || ["en-US"];
+    const primaryLang = currentLangs[0];
+    const parsed = parseDelimited(agent[field], primaryLang);
+    parsed[activeLangTab || primaryLang] = value;
+    setAgent({ ...agent, [field]: serializeDelimited(parsed) });
   };
 
   const save = async () => {
@@ -389,6 +435,10 @@ const AgentDetail = () => {
   if (!agent) return <div className="grid h-[60vh] place-items-center text-muted-foreground">Loading…</div>;
 
   const ind = INDUSTRIES.find((i) => i.id === agent.industry);
+  const currentLangs = agent.language?.split(",") || ["en-US"];
+  const primaryLang = currentLangs[0];
+  const activeSystemPrompt = parseDelimited(agent.system_prompt, primaryLang)[activeLangTab || primaryLang] || "";
+  const activeFirstMessage = parseDelimited(agent.first_message, primaryLang)[activeLangTab || primaryLang] || "";
 
   return (
     <>
@@ -449,13 +499,31 @@ const AgentDetail = () => {
                 <Label>Name</Label>
                 <Input value={agent.name} onChange={(e) => setAgent({ ...agent, name: e.target.value })} />
               </div>
+
+              {currentLangs.length > 1 && (
+                <div className="flex flex-wrap gap-2 border-b border-border pb-4">
+                  {currentLangs.map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => setActiveLangTab(l)}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-sm font-medium transition-colors",
+                        activeLangTab === l ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      )}
+                    >
+                      {languages.find(lg => lg.id === l)?.label || l}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-1.5">
-                <Label>First message</Label>
-                <Textarea rows={2} value={agent.first_message} onChange={(e) => setAgent({ ...agent, first_message: e.target.value })} />
+                <Label>First message {currentLangs.length > 1 && <span className="text-xs text-muted-foreground">({languages.find(lg => lg.id === activeLangTab)?.label || activeLangTab})</span>}</Label>
+                <Textarea rows={2} value={activeFirstMessage} onChange={(e) => handlePromptChange("first_message", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>System prompt</Label>
-                <Textarea rows={10} value={agent.system_prompt} onChange={(e) => setAgent({ ...agent, system_prompt: e.target.value })} className="font-mono text-xs" />
+                <Label>System prompt {currentLangs.length > 1 && <span className="text-xs text-muted-foreground">({languages.find(lg => lg.id === activeLangTab)?.label || activeLangTab})</span>}</Label>
+                <Textarea rows={10} value={activeSystemPrompt} onChange={(e) => handlePromptChange("system_prompt", e.target.value)} className="font-mono text-xs" />
               </div>
               <div className="space-y-6">
                 <div>

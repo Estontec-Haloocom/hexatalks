@@ -53,6 +53,19 @@ export type AgentLike = {
   temperature?: number;
 };
 
+const parseDelimited = (text: string | null | undefined, defaultLang: string) => {
+  if (!text) return { [defaultLang]: "" };
+  if (!text.includes("===LANG:")) {
+    return { [defaultLang]: text };
+  }
+  const result: Record<string, string> = {};
+  const parts = text.split(/===LANG:([a-zA-Z0-9-]+)===/);
+  for (let i = 1; i < parts.length; i += 2) {
+    result[parts[i]] = parts[i+1].trim();
+  }
+  return result;
+};
+
 export const startWebCall = (
   platform: VoicePlatform,
   agent: AgentLike,
@@ -84,11 +97,35 @@ export const startWebCall = (
     catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
     if (isStopped) return;
 
-    const baseSystem = overrides?.systemPromptOverride ?? agent.system_prompt;
-    const systemPrompt = [buildEnhancedSystemPrompt(baseSystem, blocks, agent.language, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
+    const fullLang = agent.language || "en-US";
+    const primaryLang = fullLang.split(",")[0];
+
+    const sysPrompts = parseDelimited(overrides?.systemPromptOverride ?? agent.system_prompt, primaryLang);
+    const firstMsgs = parseDelimited(overrides?.firstMessageOverride ?? agent.first_message, primaryLang);
+
+    let combinedSystemPrompt = "";
+    let combinedFirstMessage = "";
+    const langs = fullLang.split(",");
+
+    if (langs.length > 1) {
+      combinedSystemPrompt = "You are a multilingual assistant. Adapt your language and rules based on the language the user speaks.\n\n";
+      langs.forEach((l) => {
+        if (sysPrompts[l]) {
+           combinedSystemPrompt += `## Rules for language ${l}:\n${sysPrompts[l]}\n\n`;
+        }
+        if (firstMsgs[l]) {
+           combinedFirstMessage += firstMsgs[l] + " ";
+        }
+      });
+    } else {
+      combinedSystemPrompt = sysPrompts[primaryLang] || "";
+      combinedFirstMessage = firstMsgs[primaryLang] || "";
+    }
+
+    const systemPrompt = [buildEnhancedSystemPrompt(combinedSystemPrompt, blocks, fullLang, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
       .filter(Boolean)
       .join("\n\n");
-    const firstMessage = overrides?.firstMessageOverride ?? agent.first_message;
+    const firstMessage = combinedFirstMessage.trim();
 
     const actualPlatform = agent.voice_provider === "ultravox" ? "ultravox" : 
                            (agent.voice_provider && agent.voice_provider !== "11labs" && agent.voice_provider !== "playht" && agent.voice_provider !== "azure" && agent.voice_provider !== "deepgram" && agent.voice_provider !== "openai") 
@@ -165,7 +202,6 @@ export const startWebCall = (
       const isFallbackName = Object.prototype.hasOwnProperty.call(VOICE_MAP, agent.voice_id);
       const voiceId = isFallbackName ? VOICE_MAP[agent.voice_id] : agent.voice_id;
       const voiceProvider = agent.voice_provider || "11labs";
-      const fullLang = agent.language || "en-US";
       
       // Nova-2-general only supports specific languages, fallback to "multi" if not strictly supported or if we can't be sure
       const validNovaLangs = ["bg", "ca", "zh", "zh-CN", "zh-HK", "zh-Hans", "zh-TW", "zh-Hant", "cs", "da", "da-DK", "nl", "en", "en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "et", "fi", "nl-BE", "fr", "fr-CA", "de", "de-CH", "el", "hi", "hu", "id", "it", "ja", "ko", "ko-KR", "lv", "lt", "ms", "multi", "no", "pl", "pt", "pt-BR", "ro", "ru", "sk", "es", "es-419", "sv", "sv-SE", "th", "th-TH", "tr", "uk", "vi"];
