@@ -62,7 +62,7 @@ serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
-    if (action === "translate") {
+    if (action === "translate" || action === "translate_single") {
       if (!system_prompt || !first_message || !target_language) {
         return json({ error: "system_prompt, first_message, and target_language required" }, 400);
       }
