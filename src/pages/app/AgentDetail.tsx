@@ -467,52 +467,106 @@ const AgentDetail = () => {
 
           <TabsContent value="test" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-              <Card className="grid place-items-center p-6 sm:p-10">
+              <Card className="grid place-items-center p-6 sm:p-10 overflow-hidden relative">
+                {/* Background Decoration */}
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--accent-soft)_0%,transparent_70%)] opacity-40 pointer-events-none" />
+                
                 <VoiceOrb 
                   status={callStatus} 
                   volume={volume} 
                   isSpeaking={callStatus === "active" && volume > 0.05}
                   size={240} 
-                  className="sm:hidden" 
+                  className="sm:hidden relative z-10" 
                 />
                 <VoiceOrb 
                   status={callStatus} 
                   volume={volume} 
                   isSpeaking={callStatus === "active" && volume > 0.05}
                   size={300} 
-                  className="hidden sm:block" 
+                  className="hidden sm:block relative z-10" 
                 />
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
-                  <span className={cn("h-1.5 w-1.5 rounded-full",
-                    callStatus === "active" ? "bg-success animate-pulse" :
-                    callStatus === "connecting" ? "bg-warning animate-pulse" : "bg-muted-foreground"
+                
+                <div className="mt-6 relative z-10 inline-flex items-center gap-2 rounded-full border border-border bg-background/80 backdrop-blur-sm px-4 py-1.5 text-xs font-medium shadow-sm">
+                  <span className={cn("h-2 w-2 rounded-full shadow-[0_0_8px_currentColor]",
+                    callStatus === "active" ? "bg-success animate-pulse text-success" :
+                    callStatus === "connecting" ? "bg-warning animate-pulse text-warning" : "bg-muted-foreground text-muted-foreground"
                   )} />
-                  {callStatus === "idle" && "Ready"}
-                  {callStatus === "connecting" && "Connecting…"}
-                  {callStatus === "active" && (volume > 0.05 ? "Listening" : "Speaking")}
-                  {callStatus === "ended" && "Call ended"}
+                  <span className="uppercase tracking-wider">
+                    {callStatus === "idle" && "Ready"}
+                    {callStatus === "connecting" && "Establishing connection…"}
+                    {callStatus === "active" && (volume > 0.05 ? "AI Listening…" : "AI Speaking…")}
+                    {callStatus === "ended" && "Call ended"}
+                  </span>
                 </div>
-                <div className="mt-7">
-                  {callStatus === "active" || callStatus === "connecting" ? (
-                    <Button size="lg" variant="destructive" onClick={endCall} className="rounded-full px-8 shadow-lg shadow-destructive/20 transition-all hover:scale-105 active:scale-95">
-                      <MicOff className="mr-2 h-4 w-4" /> End call
-                    </Button>
-                  ) : (
-                    <Button size="lg" onClick={startCall} className="rounded-full px-8 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
-                      <Mic className="mr-2 h-4 w-4" /> Start call
-                    </Button>
-                  )}
+
+                <div className="mt-8 relative z-10">
+                  <AnimatePresence mode="wait">
+                    {callStatus === "active" || callStatus === "connecting" ? (
+                      <motion.div
+                        key="end"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                      >
+                        <Button size="lg" variant="destructive" onClick={endCall} className="rounded-full px-10 h-14 text-base font-semibold shadow-xl shadow-destructive/30 transition-all hover:scale-105 active:scale-95 border-2 border-destructive/20 bg-destructive hover:bg-destructive/90">
+                          <MicOff className="mr-3 h-5 w-5" /> End call
+                        </Button>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="start"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                      >
+                        <Button size="lg" onClick={startCall} className="rounded-full px-10 h-14 text-base font-semibold shadow-xl shadow-primary/30 transition-all hover:scale-105 active:scale-95 border-2 border-primary/20 bg-primary hover:bg-primary/90">
+                          <Mic className="mr-3 h-5 w-5" /> Start call
+                        </Button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </Card>
-              <Card className="flex h-[420px] flex-col p-0 lg:h-[500px]">
-                <div className="border-b border-border px-5 py-3 text-sm font-medium">Live transcript</div>
-                <div className="flex-1 space-y-3 overflow-y-auto p-5">
-                  {transcript.length === 0 && <div className="text-sm text-muted-foreground">Start the call to see the transcript here.</div>}
-                  {transcript.map((t, i) => (
-                    <div key={i} className={cn("max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                      t.role === "user" ? "ml-auto bg-accent text-accent-foreground" : "bg-secondary"
-                    )}>{t.text}</div>
-                  ))}
+              <Card className="flex h-[420px] flex-col p-0 lg:h-[500px] overflow-hidden">
+                <div className="border-b border-border bg-muted/30 px-5 py-3 text-sm font-medium flex items-center justify-between">
+                  <span>Live transcript</span>
+                  {callStatus === "active" && (
+                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-success font-bold">
+                      <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                      Live
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-4 overflow-y-auto p-5 bg-gradient-to-b from-transparent to-muted/10">
+                  <AnimatePresence initial={false}>
+                    {transcript.length === 0 ? (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-sm text-muted-foreground italic text-center mt-10"
+                      >
+                        Start the call to see the transcript here.
+                      </motion.div>
+                    ) : (
+                      transcript.map((t, i) => (
+                        <motion.div 
+                          key={i}
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          className={cn("max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm transition-all",
+                            t.role === "user" 
+                              ? "ml-auto bg-primary text-primary-foreground rounded-tr-none" 
+                              : "bg-background border border-border rounded-tl-none"
+                          )}
+                        >
+                          <div className="text-[10px] uppercase tracking-wider opacity-50 mb-1 font-bold">
+                            {t.role === "user" ? "You" : agent.name}
+                          </div>
+                          {t.text}
+                        </motion.div>
+                      ))
+                    )}
+                  </AnimatePresence>
                 </div>
               </Card>
             </div>
