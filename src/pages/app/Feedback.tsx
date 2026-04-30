@@ -449,22 +449,31 @@ const Feedback = () => {
                   <TabsContent value="test" className="mt-5">
                     <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
                       <Card className="grid place-items-center p-6">
-                        <VoiceOrb active={callStatus === "active"} volume={volume} size={220} />
+                        <VoiceOrb 
+                          status={callStatus} 
+                          volume={volume} 
+                          isSpeaking={callStatus === "active" && volume > 0.05}
+                          size={220} 
+                        />
                         <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
                           <span className={cn("h-1.5 w-1.5 rounded-full",
                             callStatus === "active" ? "bg-success animate-pulse" :
                             callStatus === "connecting" ? "bg-warning animate-pulse" : "bg-muted-foreground"
                           )} />
-                          {callStatus === "idle" && "Ready to test"}
+                          {callStatus === "idle" && "Ready"}
                           {callStatus === "connecting" && "Connecting…"}
                           {callStatus === "active" && (volume > 0.05 ? "Listening" : "Speaking")}
                           {callStatus === "ended" && "Call ended"}
                         </div>
-                        <div className="mt-5">
+                        <div className="mt-6">
                           {callStatus === "active" || callStatus === "connecting" ? (
-                            <Button size="lg" variant="destructive" onClick={endCall}><MicOff className="h-4 w-4" /> End test</Button>
+                            <Button size="lg" variant="destructive" onClick={endCall} className="rounded-full px-8 shadow-lg shadow-destructive/20 transition-all hover:scale-105 active:scale-95">
+                              <MicOff className="mr-2 h-4 w-4" /> End call
+                            </Button>
                           ) : (
-                            <Button size="lg" onClick={startCall} disabled={!sourceAgent}><Mic className="h-4 w-4" /> Start test call</Button>
+                            <Button size="lg" onClick={startCall} disabled={!sourceAgent} className="rounded-full px-8 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+                              <Mic className="mr-2 h-4 w-4" /> Start call
+                            </Button>
                           )}
                         </div>
                         <p className="mt-3 text-center text-xs text-muted-foreground">

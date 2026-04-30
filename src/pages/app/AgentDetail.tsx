@@ -468,8 +468,20 @@ const AgentDetail = () => {
           <TabsContent value="test" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <Card className="grid place-items-center p-6 sm:p-10">
-                <VoiceOrb active={callStatus === "active"} volume={volume} size={240} className="sm:hidden" />
-                <VoiceOrb active={callStatus === "active"} volume={volume} size={300} className="hidden sm:block" />
+                <VoiceOrb 
+                  status={callStatus} 
+                  volume={volume} 
+                  isSpeaking={callStatus === "active" && volume > 0.05}
+                  size={240} 
+                  className="sm:hidden" 
+                />
+                <VoiceOrb 
+                  status={callStatus} 
+                  volume={volume} 
+                  isSpeaking={callStatus === "active" && volume > 0.05}
+                  size={300} 
+                  className="hidden sm:block" 
+                />
                 <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
                   <span className={cn("h-1.5 w-1.5 rounded-full",
                     callStatus === "active" ? "bg-success animate-pulse" :
@@ -482,9 +494,13 @@ const AgentDetail = () => {
                 </div>
                 <div className="mt-7">
                   {callStatus === "active" || callStatus === "connecting" ? (
-                    <Button size="lg" variant="destructive" onClick={endCall}><MicOff className="h-4 w-4" /> End call</Button>
+                    <Button size="lg" variant="destructive" onClick={endCall} className="rounded-full px-8 shadow-lg shadow-destructive/20 transition-all hover:scale-105 active:scale-95">
+                      <MicOff className="mr-2 h-4 w-4" /> End call
+                    </Button>
                   ) : (
-                    <Button size="lg" onClick={startCall}><Mic className="h-4 w-4" /> Start call</Button>
+                    <Button size="lg" onClick={startCall} className="rounded-full px-8 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+                      <Mic className="mr-2 h-4 w-4" /> Start call
+                    </Button>
                   )}
                 </div>
               </Card>
