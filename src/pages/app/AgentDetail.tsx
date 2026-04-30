@@ -106,7 +106,7 @@ const AgentDetail = () => {
   const [saving, setSaving] = useState(false);
 
   const [translationPromptOpen, setTranslationPromptOpen] = useState(false);
-  const [pendingLanguage, setPendingLanguage] = useState<{ id: string, label: string } | null>(null);
+  const [pendingLanguage, setPendingLanguage] = useState<{ id: string, label: string, newLangs: string[] } | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
 
   const [callStatus, setCallStatus] = useState<"idle" | "connecting" | "active" | "ended">("idle");
@@ -194,9 +194,19 @@ const AgentDetail = () => {
   };
 
   const handleLanguageSelect = (langId: string, langLabel: string) => {
-    if (agent?.language === langId) return;
-    setPendingLanguage({ id: langId, label: langLabel });
-    setTranslationPromptOpen(true);
+    const currentLangs = agent?.language ? agent.language.split(",") : [];
+    const isSelected = currentLangs.includes(langId);
+
+    if (isSelected && currentLangs.length === 1) return;
+
+    if (isSelected) {
+      const newLangs = currentLangs.filter((l: string) => l !== langId);
+      setAgent({ ...agent, language: newLangs.join(",") });
+    } else {
+      const newLangs = [...currentLangs, langId];
+      setPendingLanguage({ id: langId, label: langLabel, newLangs });
+      setTranslationPromptOpen(true);
+    }
   };
 
   const confirmTranslation = async (shouldTranslate: boolean) => {
@@ -205,11 +215,12 @@ const AgentDetail = () => {
       return;
     }
 
-    const newLang = pendingLanguage.id;
-    const newLangLabel = pendingLanguage.label;
+    const { newLangs } = pendingLanguage;
+    const newLangsLabels = newLangs.map((id: string) => languages.find((l) => l.id === id)?.label || id);
+    const newLangStr = newLangs.join(",");
 
     if (!shouldTranslate) {
-      setAgent({ ...agent, language: newLang });
+      setAgent({ ...agent, language: newLangStr });
       setTranslationPromptOpen(false);
       setPendingLanguage(null);
       return;
@@ -222,7 +233,7 @@ const AgentDetail = () => {
           action: "translate",
           system_prompt: agent.system_prompt || " ",
           first_message: agent.first_message || " ",
-          target_language: newLangLabel,
+          target_language: newLangsLabels.join(" and "),
         }
       });
 
@@ -237,16 +248,16 @@ const AgentDetail = () => {
 
       setAgent({
         ...agent,
-        language: newLang,
+        language: newLangStr,
         system_prompt: data.system_prompt || agent.system_prompt,
         first_message: data.first_message || agent.first_message,
       });
-      toast({ title: "Translated successfully", description: `Your prompt has been translated to ${newLangLabel}.` });
+      toast({ title: "Translated successfully", description: `Your prompt has been updated for ${newLangsLabels.join(" and ")}.` });
     } catch (err: any) {
       console.error("Translation failed:", err);
       toast({ title: "Translation failed", description: err.message || "Could not translate prompt.", variant: "destructive" });
       // Still update language if translation fails
-      setAgent({ ...agent, language: newLang });
+      setAgent({ ...agent, language: newLangStr });
     } finally {
       setIsTranslating(false);
       setTranslationPromptOpen(false);
@@ -343,13 +354,15 @@ const AgentDetail = () => {
 
   const baseVoices = useMemo(() => {
     if (!agent?.language) return voices;
+    const currentLangs = agent.language.split(",");
+    const primaryLang = currentLangs[0]?.toLowerCase() || "";
+
     return voices.filter((v) => {
       const vLang = (v.language || "").toLowerCase();
-      const uLang = agent.language.toLowerCase();
-      const langOk = !vLang || 
-        vLang === uLang || 
-        vLang === uLang.slice(0, 2) || 
-        uLang === vLang.slice(0, 2);
+      const langOk = !vLang || !primaryLang ||
+        vLang === primaryLang || 
+        vLang === primaryLang.slice(0, 2) || 
+        primaryLang === vLang.slice(0, 2);
 
       const isNeutralGender = gender === "Neutral";
       const matchesGender = wordIncludes(v.gender, gender) || wordIncludes(v.description, gender) || wordIncludes(v.label, gender);
@@ -470,14 +483,23 @@ const AgentDetail = () => {
                 </div>
 
                 <div>
-                  <Label className="mb-3 block">Language</Label>
+                  <Label className="mb-3 block">Language (Select multiple if needed)</Label>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {languages.map((l) => (
-                      <button key={l.id} onClick={() => handleLanguageSelect(l.id, l.label)} className={cn(
-                        "rounded-lg border px-3 py-2 text-left text-sm transition-all",
-                        agent.language === l.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
-                      )}>{l.label}</button>
-                    ))}
+                    {languages.map((l) => {
+                      const isSelected = (agent.language || "").split(",").includes(l.id);
+                      return (
+                        <button 
+                          key={l.id} 
+                          onClick={() => handleLanguageSelect(l.id, l.label)} 
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                            isSelected ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
+                          )}
+                        >
+                          {l.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

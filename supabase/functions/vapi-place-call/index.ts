@@ -147,20 +147,28 @@ serve(async (req) => {
     const fullLang = (agent.language || "en-US") as string;
     const validNovaLangs = ["bg", "ca", "zh", "zh-CN", "zh-HK", "zh-Hans", "zh-TW", "zh-Hant", "cs", "da", "da-DK", "nl", "en", "en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "et", "fi", "nl-BE", "fr", "fr-CA", "de", "de-CH", "el", "hi", "hu", "id", "it", "ja", "ko", "ko-KR", "lv", "lt", "ms", "multi", "no", "pl", "pt", "pt-BR", "ro", "ru", "sk", "es", "es-419", "sv", "sv-SE", "th", "th-TH", "tr", "uk", "vi"];
     let langShort = fullLang;
-    if (!validNovaLangs.includes(langShort)) {
-        langShort = fullLang.split("-")[0].toLowerCase();
+    let languageDirective = "";
+
+    if (fullLang.includes(",")) {
+        langShort = "multi";
+        languageDirective = `\n\n## Language\nYou MUST seamlessly speak and understand the following languages: ${fullLang}. ALWAYS include a greeting in all these languages in your first message, and then automatically switch to whichever language the user speaks to you in.`;
+    } else {
         if (!validNovaLangs.includes(langShort)) {
-            langShort = "multi";
+            langShort = fullLang.split("-")[0].toLowerCase();
+            if (!validNovaLangs.includes(langShort)) {
+                langShort = "multi";
+            }
         }
+        const LANG_NAMES: Record<string, string> = {
+          en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
+          pt: "Portuguese", it: "Italian", ja: "Japanese", zh: "Mandarin Chinese",
+          ar: "Arabic", ru: "Russian", nl: "Dutch", pl: "Polish", tr: "Turkish",
+          ko: "Korean", id: "Indonesian", vi: "Vietnamese", th: "Thai",
+        };
+        const langName = LANG_NAMES[langShort] || fullLang;
+        languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
     }
-    const LANG_NAMES: Record<string, string> = {
-      en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
-      pt: "Portuguese", it: "Italian", ja: "Japanese", zh: "Mandarin Chinese",
-      ar: "Arabic", ru: "Russian", nl: "Dutch", pl: "Polish", tr: "Turkish",
-      ko: "Korean", id: "Indonesian", vi: "Vietnamese", th: "Thai",
-    };
-    const langName = LANG_NAMES[langShort] || fullLang;
-    const languageDirective = `\n\n## Language\nYou MUST speak and respond ONLY in ${langName} (${fullLang}) for the entire conversation, including the very first message. Never switch to another language unless the user explicitly asks. Use natural, native phrasing.`;
+    
     const systemPromptLocalized = [agent.system_prompt || "", blocksText, orgPromptIdeText, languageDirective, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
 
     if (platform === "ultravox") {

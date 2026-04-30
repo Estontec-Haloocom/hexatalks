@@ -171,7 +171,9 @@ export const startWebCall = (
       const validNovaLangs = ["bg", "ca", "zh", "zh-CN", "zh-HK", "zh-Hans", "zh-TW", "zh-Hant", "cs", "da", "da-DK", "nl", "en", "en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "et", "fi", "nl-BE", "fr", "fr-CA", "de", "de-CH", "el", "hi", "hu", "id", "it", "ja", "ko", "ko-KR", "lv", "lt", "ms", "multi", "no", "pl", "pt", "pt-BR", "ro", "ru", "sk", "es", "es-419", "sv", "sv-SE", "th", "th-TH", "tr", "uk", "vi"];
       
       let langShort = fullLang;
-      if (!validNovaLangs.includes(langShort)) {
+      if (fullLang.includes(",")) {
+         langShort = "multi";
+      } else if (!validNovaLangs.includes(langShort)) {
          langShort = fullLang.split("-")[0].toLowerCase();
          if (!validNovaLangs.includes(langShort)) {
             langShort = "multi";

@@ -71,7 +71,16 @@ serve(async (req) => {
         return json({ error: "GEMINI_API_KEY missing" }, 200); // 200 so frontend can handle nicely
       }
 
-      const translateSystem = `You are an expert translator. Translate the following 'system_prompt' and 'first_message' into the target language: ${target_language}.
+      const translateSystem = `You are an expert translator and AI prompt engineer. 
+Translate the following 'system_prompt' and 'first_message' so that the AI agent can speak in the following target language(s): ${target_language}.
+
+If there are multiple target languages:
+1. The 'first_message' MUST include a greeting in all specified languages (e.g. "Hello! Hola! How can I help you today?").
+2. The 'system_prompt' MUST include a new section "## Languages" explicitly instructing the agent to seamlessly understand and speak in ALL the specified languages, and to respond in whichever language the user speaks.
+3. Keep the core instructions of the system prompt in English for the AI to understand, but add the multi-lingual rules.
+
+If there is only one target language, translate both fields entirely into that language.
+
 Preserve all formatting, markdown, and placeholders. Maintain the original tone and context.
 
 Return ONLY valid JSON with keys:
@@ -164,7 +173,7 @@ Country / market: ${country || "(not provided)"}
 Preferred accent / dialect: ${accent || "(not provided)"}
 Voice gender: ${gender || "(not provided)"}
 Tone: ${tone || "professional, warm"}
-Primary language: ${language || "en-US"}
+Primary language(s): ${language || "en-US"}
 Top use cases: ${(Array.isArray(useCases) ? useCases.join(", ") : useCases) || "(infer from description)"}
 
 Starter template (rewrite, don't copy):
@@ -173,7 +182,8 @@ ${starterPrompt}
 Business description:
 ${description}
 
-Tailor everything to this specific business, region, and accent. Use locale-appropriate phrasing (e.g. "mate" for AU, "y'all" only if US South, etc.).
+Tailor everything to this specific business, region, and accent. Use locale-appropriate phrasing.
+If multiple languages are specified, instruct the agent to be fully bilingual/multilingual and greet the user in those languages.
 
 Return ONLY valid JSON with keys:
 {

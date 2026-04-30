@@ -105,7 +105,7 @@ const NewAgent = () => {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [firstMessage, setFirstMessage] = useState("");
   const [voiceId, setVoiceId] = useState("");
-  const [language, setLanguage] = useState("en-US");
+  const [languages, setLanguages] = useState<string[]>(["en-US"]);
   const [generating, setGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<string | null>(null);
@@ -139,16 +139,17 @@ const NewAgent = () => {
   const allIndustries = useMemo(() => [...mappedCustomIndustries, ...INDUSTRIES], [mappedCustomIndustries]);
   const ind = allIndustries.find((i) => i.id === industry);
   const allVoices = catalog?.voices ?? [];
-  const languages = catalog?.languages ?? [];
+  const catalogLanguages = catalog?.languages ?? [];
 
   const baseVoices = useMemo(() => {
     return allVoices.filter((v) => {
       const vLang = (v.language || "").toLowerCase();
-      const uLang = language.toLowerCase();
-      const langOk = !vLang || 
-        vLang === uLang || 
-        vLang === uLang.slice(0, 2) || 
-        uLang === vLang.slice(0, 2);
+      // Only filter by primary language or if no languages selected
+      const primaryLang = languages[0]?.toLowerCase() || "";
+      const langOk = !vLang || !primaryLang ||
+        vLang === primaryLang || 
+        vLang === primaryLang.slice(0, 2) || 
+        primaryLang === vLang.slice(0, 2);
 
       const isNeutralGender = gender === "Neutral";
       const matchesGender = wordIncludes(v.gender, gender) || wordIncludes(v.description, gender) || wordIncludes(v.label, gender);
@@ -160,7 +161,7 @@ const NewAgent = () => {
 
       return langOk && genderOk && accentOk;
     });
-  }, [allVoices, language, gender, accent]);
+  }, [allVoices, languages, gender, accent]);
   const visibleVoices = useMemo(() => {
     const q = voiceSearch.trim().toLowerCase();
     if (!q) return baseVoices;
@@ -370,7 +371,7 @@ const NewAgent = () => {
           accent,
           gender,
           tone,
-          language,
+          language: languages.join(","),
           useCases: useCases.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
         },
       });
@@ -410,7 +411,7 @@ const NewAgent = () => {
         first_message: firstMessage,
         voice_id: finalVoice?.id ?? voiceId ?? "jennifer",
         voice_provider: finalVoice?.provider ?? "11labs",
-        language,
+        language: languages.join(","),
         inbound_enabled: callDirection === "inbound",
         outbound_enabled: callDirection === "outbound",
       }).select("id").single();
@@ -681,14 +682,29 @@ const NewAgent = () => {
                   </div>
 
                   <div>
-                    <Label className="mb-3 block">Language</Label>
+                    <Label className="mb-3 block">Language (Select multiple if needed)</Label>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {languages.map((l) => (
-                        <button key={l.id} onClick={() => setLanguage(l.id)} className={cn(
-                          "rounded-lg border px-3 py-2 text-left text-sm transition-all",
-                          language === l.id ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
-                        )}>{l.label}</button>
-                      ))}
+                      {catalogLanguages.map((l) => {
+                        const isSelected = languages.includes(l.id);
+                        return (
+                          <button 
+                            key={l.id} 
+                            onClick={() => {
+                              if (isSelected && languages.length > 1) {
+                                setLanguages(languages.filter(id => id !== l.id));
+                              } else if (!isSelected) {
+                                setLanguages([...languages, l.id]);
+                              }
+                            }} 
+                            className={cn(
+                              "rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                              isSelected ? "border-accent bg-accent-soft" : "border-border hover:bg-surface"
+                            )}
+                          >
+                            {l.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -761,7 +777,7 @@ const NewAgent = () => {
                       ["Accent", accent],
                       ["Tone", tone],
                       ["Voice", selectedVoice?.label],
-                      ["Language", languages.find((l) => l.id === language)?.label],
+                      ["Language", languages.map(l => catalogLanguages.find((cl) => cl.id === l)?.label).join(", ")],
                       ["First message", firstMessage],
                     ].filter(([, v]) => v).map(([k, v]) => (
                       <div key={k as string} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
