@@ -21,6 +21,7 @@ type Agent = {
 
 const Agents = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [customIndustries, setCustomIndustries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { currentOrgId } = useOrg();
@@ -29,6 +30,14 @@ const Agents = () => {
   const loadAgents = async () => {
     if (!currentOrgId) { setAgents([]); setLoading(false); return; }
     setLoading(true);
+    
+    // Load custom industries first to map names
+    const { data: ciData } = await supabase
+      .from("custom_industries" as any)
+      .select("id,name")
+      .eq("org_id", currentOrgId);
+    setCustomIndustries(ciData ?? []);
+
     const { data } = await supabase
       .from("agents")
       .select("id,name,industry,created_at,first_message,inbound_enabled,outbound_enabled")
@@ -39,6 +48,19 @@ const Agents = () => {
   };
 
   useEffect(() => { loadAgents(); /* eslint-disable-next-line */ }, [currentOrgId]);
+
+  const getIndustryName = (industryId: string) => {
+    const ind = INDUSTRIES.find((i) => i.id === industryId);
+    if (ind) return ind.name;
+    
+    if (industryId.startsWith("custom-")) {
+      const ciId = industryId.replace("custom-", "");
+      const ci = customIndustries.find((x) => x.id === ciId);
+      return ci?.name || "Custom Industry";
+    }
+    
+    return industryId;
+  };
 
   const deleteAgent = async (id: string, name: string) => {
     if (!confirm(`Delete agent "${name}"? This action cannot be undone.`)) return;
@@ -80,7 +102,7 @@ const Agents = () => {
                       <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground"><Icon className="h-4 w-4" /></div>
                       <div className="min-w-0">
                         <div className="truncate font-semibold">{a.name}</div>
-                        <div className="text-xs text-muted-foreground">{ind?.name ?? a.industry}</div>
+                        <div className="text-xs text-muted-foreground">{getIndustryName(a.industry)}</div>
                       </div>
                     </div>
                     <p className="mt-4 line-clamp-2 text-sm text-muted-foreground">"{a.first_message}"</p>

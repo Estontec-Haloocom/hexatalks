@@ -123,6 +123,7 @@ const AgentDetail = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [customIndustry, setCustomIndustry] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   const [translationPromptOpen, setTranslationPromptOpen] = useState(false);
@@ -208,7 +209,14 @@ const AgentDetail = () => {
 
   useEffect(() => {
     if (!id) return;
-    supabase.from("agents").select("*").eq("id", id).single().then(({ data }) => setAgent(data));
+    supabase.from("agents").select("*").eq("id", id).single().then(async ({ data }) => {
+      setAgent(data);
+      if (data?.industry?.startsWith("custom-")) {
+        const ciId = data.industry.replace("custom-", "");
+        const { data: ci } = await supabase.from("custom_industries" as any).select("name").eq("id", ciId).single();
+        setCustomIndustry(ci);
+      }
+    });
     supabase.from("calls").select("*").eq("agent_id", id).order("created_at", { ascending: false }).then(({ data }) => setCalls(data ?? []));
   }, [id]);
 
@@ -435,6 +443,7 @@ const AgentDetail = () => {
   if (!agent) return <div className="grid h-[60vh] place-items-center text-muted-foreground">Loading…</div>;
 
   const ind = INDUSTRIES.find((i) => i.id === agent.industry);
+  const industryName = ind?.name || customIndustry?.name || agent.industry;
   const currentLangs = agent.language?.split(",") || ["en-US"];
   const primaryLang = currentLangs[0];
   const activeSystemPrompt = parseDelimited(agent.system_prompt, primaryLang)[activeLangTab || primaryLang] || "";
@@ -444,7 +453,7 @@ const AgentDetail = () => {
     <>
       <PageHeader
         title={agent.name}
-        description={ind?.name}
+        description={industryName}
         actions={<Button asChild variant="ghost" size="sm"><Link to="/app/agents"><ArrowLeft className="h-4 w-4" /> All agents</Link></Button>}
       />
       <div className="px-5 py-6 sm:p-8">
