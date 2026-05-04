@@ -24,6 +24,26 @@ const ULTRAVOX_FALLBACK_MAP: Record<string, string> = {
   leo: "Mark",
 };
 const ULTRAVOX_DEFAULT_VOICE = "Mark";
+const LANG_NAMES: Record<string, string> = {
+  en: "English",
+  hi: "Hindi",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+  it: "Italian",
+  ja: "Japanese",
+  zh: "Mandarin Chinese",
+  ar: "Arabic",
+  ru: "Russian",
+  nl: "Dutch",
+  pl: "Polish",
+  tr: "Turkish",
+  ko: "Korean",
+  id: "Indonesian",
+  vi: "Vietnamese",
+  th: "Thai",
+};
 const QUALITY_GUARDRAILS = `## Reliability Rules
 - Never invent facts, names, prices, policies, or availability.
 - If information is missing or unclear, ask a brief clarifying question before proceeding.
@@ -64,6 +84,11 @@ const parseDelimited = (text: string | null | undefined, defaultLang: string) =>
     result[parts[i]] = parts[i+1].trim();
   }
   return result;
+};
+
+const languageDisplayName = (langCode: string) => {
+  const short = (langCode || "en").split("-")[0].toLowerCase();
+  return LANG_NAMES[short] || langCode;
 };
 
 export const startWebCall = (
@@ -108,21 +133,31 @@ export const startWebCall = (
     const langs = fullLang.split(",");
 
     if (langs.length > 1) {
-      combinedSystemPrompt = "You are a multilingual assistant. Adapt your language and rules based on the language the user speaks.\n\n";
+      const langNamesList = langs.map((l) => languageDisplayName(l));
+      const selectionPrompt = `Hello. I can continue in ${langNamesList.slice(0, -1).join(", ")} or ${langNamesList.slice(-1)}. Please tell me which language you prefer?`;
+      
+      combinedSystemPrompt = `You are a professional multilingual AI assistant.
+
+## Multilingual Runtime Rules
+- **CRITICAL**: Your very first response MUST be exactly: "${selectionPrompt}"
+- **DO NOT** perform any business logic, greeting, or assistance until the user has explicitly chosen a language from the allowed list: ${langNamesList.join(", ")}.
+- Once the user selects a language, you must switch to that language's specific rules and tone IMMEDIATELY.
+- **Robust Switching**: If at any point during the conversation the user says "Switch to [Language]" or starts speaking in one of the other allowed languages, you MUST switch your response language to match them immediately and stay in that language until requested otherwise.
+- Always maintain the character and tone defined in the language-specific rules below.
+
+`;
       langs.forEach((l) => {
         if (sysPrompts[l]) {
-           combinedSystemPrompt += `## Rules for language ${l}:\n${sysPrompts[l]}\n\n`;
-        }
-        if (firstMsgs[l]) {
-           combinedFirstMessage += firstMsgs[l] + " ";
+           combinedSystemPrompt += `### Rules for ${languageDisplayName(l)} (${l}):\n${sysPrompts[l]}\n\n`;
         }
       });
+      combinedFirstMessage = selectionPrompt;
     } else {
       combinedSystemPrompt = sysPrompts[primaryLang] || "";
       combinedFirstMessage = firstMsgs[primaryLang] || "";
     }
 
-    const systemPrompt = [buildEnhancedSystemPrompt(combinedSystemPrompt, blocks, fullLang, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
+    const systemPrompt = [buildEnhancedSystemPrompt(combinedSystemPrompt, blocks, primaryLang, overrides?.orgPromptConfig), QUALITY_GUARDRAILS]
       .filter(Boolean)
       .join("\n\n");
     const firstMessage = combinedFirstMessage.trim();
