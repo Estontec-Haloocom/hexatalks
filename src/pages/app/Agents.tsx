@@ -81,7 +81,7 @@ const Agents = () => {
       <PageHeader title="Agents" description="Voice AI agents you've created." actions={
         <div className="flex items-center gap-3">
           <WalletDropdown />
-          <Button asChild><Link to="/app/agents/new"><Plus className="h-4 w-4" /> New agent</Link></Button>
+          <Button asChild className="hidden sm:flex"><Link to="/app/agents/new"><Plus className="h-4 w-4" /> New agent</Link></Button>
         </div>
       } />
       

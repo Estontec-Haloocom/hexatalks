@@ -19,13 +19,13 @@ export const WalletDropdown = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-9 gap-2.5 border-border/40 bg-background px-3 font-semibold shadow-sm hover:bg-muted/50 transition-all">
-          <div className="flex items-center gap-2">
-            <div className={cn("h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor]", (currentBalance ?? 0) > 0 ? "bg-success text-success" : "bg-destructive text-destructive")} />
-            <span className="text-[11px] uppercase tracking-wider font-bold">Wallet</span>
+        <Button variant="outline" className="h-8 gap-1.5 border-border/40 bg-background px-2 sm:h-9 sm:gap-2.5 sm:px-3 font-semibold shadow-sm hover:bg-muted/50 transition-all">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className={cn("h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full shadow-[0_0_8px_currentColor]", (currentBalance ?? 0) > 0 ? "bg-success text-success" : "bg-destructive text-destructive")} />
+            <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-bold">Wallet</span>
           </div>
           <div className="h-3 w-px bg-border/40" />
-          <span className="text-xs font-mono">
+          <span className="text-[10px] sm:text-xs font-mono">
             ${(currentBalance ?? 0).toFixed(2)}
           </span>
           <ChevronDown className="h-3 w-3 opacity-40" />
