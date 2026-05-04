@@ -117,7 +117,7 @@ export const startWebCall = (
     try { activeSessionOrVapi?.leaveCall?.(); } catch { /* noop */ }
   };
 
-  const init = async () => {
+  const init = async (retryPlatform?: VoicePlatform) => {
     try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch { throw new Error("Microphone permission denied. Allow mic access and try again."); }
     if (isStopped) return;
@@ -165,9 +165,9 @@ export const startWebCall = (
       .join("\n\n");
     const firstMessage = combinedFirstMessage.trim();
 
-    const actualPlatform = agent.voice_provider === "ultravox" ? "ultravox" : 
+    const actualPlatform = retryPlatform || (agent.voice_provider === "ultravox" ? "ultravox" : 
                            (agent.voice_provider && agent.voice_provider !== "11labs" && agent.voice_provider !== "playht" && agent.voice_provider !== "azure" && agent.voice_provider !== "deepgram" && agent.voice_provider !== "openai") 
-                           ? platform : platform;
+                           ? platform : platform);
 
     const routeToUltravox = actualPlatform === "ultravox" || agent.voice_provider === "ultravox";
     const devSettings = overrides?.devSettings;
@@ -189,6 +189,13 @@ export const startWebCall = (
           ultravox_api_key: useCustomKeys ? devSettings?.ultravox_api_key : undefined,
         },
       });
+
+      if (data?.code === "INSUFFICIENT_FUNDS" && !retryPlatform) {
+        console.warn("Model U balance 0, attempting failover to Model V...");
+        emit("error", { message: "Model U has 0 balance. Switched to Model V.", isFailover: true });
+        return init("vapi");
+      }
+
       if (error) throw error;
       if (!data?.joinUrl) throw new Error(data?.error || "Ultravox did not return a join URL");
       if (isStopped) return;
@@ -212,6 +219,7 @@ export const startWebCall = (
 
     } else {
       let publicKey = useCustomKeys ? devSettings?.vapi_public_key : null;
+      let vapiData: any = null;
 
       if (!publicKey) {
         const { data, error } = await supabase.functions.invoke("vapi-web-token", {
@@ -219,9 +227,17 @@ export const startWebCall = (
             vapi_private_key: useCustomKeys ? devSettings?.vapi_private_key : undefined,
           }
         });
+        
+        if (data?.code === "INSUFFICIENT_FUNDS" && !retryPlatform) {
+          console.warn("Model V balance 0, attempting failover to Model U...");
+          emit("error", { message: "Model V has 0 balance. Switched to Model U.", isFailover: true });
+          return init("ultravox");
+        }
+
         if (error) throw error;
         if (!data?.publicKey) throw new Error(data?.error || "Voice service not configured.");
         publicKey = data.publicKey;
+        vapiData = data;
       }
       if (isStopped) return;
 
@@ -286,7 +302,16 @@ export const startWebCall = (
         backgroundDenoisingEnabled: true,
         silenceTimeoutSeconds: 20,
         responseDelaySeconds: 0.05,
-      } as any).catch((e: any) => { if (!isStopped) emit("error", e); });
+      } as any).catch((e: any) => { 
+        if (!isStopped) {
+           if (String(e.message || e).toLowerCase().includes("balance") && !retryPlatform) {
+              console.warn("Vapi balance 0, attempting failover to Model U...");
+              emit("error", { message: "Model V has 0 balance. Switched to Model U.", isFailover: true });
+              return init("ultravox");
+           }
+           emit("error", e);
+        }
+      });
     }
   };
 

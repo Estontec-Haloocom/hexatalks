@@ -228,116 +228,13 @@ serve(async (req) => {
     
     const systemPromptLocalized = [combinedSystemPrompt, blocksText, orgPromptIdeText, languageDirective, QUALITY_GUARDRAILS].filter(Boolean).join("\n\n");
 
-    if (platform === "ultravox") {
-      const ULTRAVOX_KEY = (useCustomKeys ? settings?.ultravox_api_key : undefined) || Deno.env.get("ULTRAVOX_API_KEY");
-      if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
-      const isUltravoxVoice = agent.voice_provider === "ultravox";
-      const uvVoice = isUltravoxVoice
-        ? agent.voice_id
-        : ULTRAVOX_FALLBACK_MAP[String(agent.voice_id ?? "").toLowerCase()] ?? ULTRAVOX_DEFAULT_VOICE;
-
-      const greeting = combinedFirstMessage ? `# Greeting\nStart by saying: "${combinedFirstMessage}"\n\n` : "";
-      const ultravoxPayload: Record<string, unknown> = {
-        systemPrompt: greeting + systemPromptLocalized,
-        model: "fixie-ai/ultravox",
-        systemVoice: uvVoice,
-        languageHint: langShort,
-        temperature: Number(agent.temperature ?? 0.25),
-        firstSpeaker: "FIRST_SPEAKER_AGENT",
-        medium: { twilio: {} },
-      };
-      const r = await fetch("https://api.ultravox.ai/api/calls", {
+    const placeNativeVapiCall = async (apiKey: string, phoneNumberId: string) => {
+      const res = await fetch("https://api.vapi.ai/call", {
         method: "POST",
-        headers: { "X-API-Key": ULTRAVOX_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify(ultravoxPayload),
-      });
-      let ud = await readJson(r);
-      if (!r.ok && (agent.voice_id || langShort)) {
-        console.warn("Ultravox call create failed, retrying with minimal payload", r.status, ud);
-        delete ultravoxPayload.systemVoice;
-        delete ultravoxPayload.voice; // just in case
-        delete ultravoxPayload.languageHint;
-        const retry = await fetch("https://api.ultravox.ai/api/calls", {
-          method: "POST",
-          headers: { "X-API-Key": ULTRAVOX_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify(ultravoxPayload),
-        });
-        ud = await readJson(retry);
-        if (!retry.ok) throw new Error(ud?.detail || ud?.message || ud?.error || "Ultravox call create failed");
-      } else if (!r.ok) {
-        throw new Error(ud?.detail || ud?.message || ud?.error || "Ultravox call create failed");
-      }
-      if (!ud.joinUrl) throw new Error("Ultravox did not return a joinUrl");
-
-      // Bridge Twilio outbound call to Ultravox via Media Streams
-      // Ultravox should speak in the configured agent voice immediately.
-      // Do not prepend Twilio TTS greeting, otherwise callers hear a mismatched voice first.
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
-      const tBody = new URLSearchParams({ To: cleanToNumber, From: tFrom, Twiml: twiml });
-      const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
-        method: "POST",
-        headers: {
-          Authorization: "Basic " + btoa(`${tSid}:${tTok}`),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: tBody,
-      });
-      const td = await tr.json();
-      if (!tr.ok) throw new Error(td?.message || "Twilio dial failed");
-
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from("calls").insert({
-        user_id: user!.id,
-        org_id: agent.org_id ?? null,
-        agent_id: agentId,
-        direction: "outbound",
-          to_number: cleanToNumber,
-        from_number: tFrom,
-        status: "queued",
-        vapi_call_id: td.sid,
-      });
-      return new Response(JSON.stringify({ ok: true, callId: td.sid, ultravoxCallId: ud.callId || ud.id, platform: "ultravox+twilio" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const VAPI_KEY = (useCustomKeys ? settings?.vapi_private_key : undefined) || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
-    if (!VAPI_KEY) throw new Error("VAPI private key missing. Set VAPI_PRIVATE_API in Supabase secrets.");
-    if (looksLikePublicVapiKey(VAPI_KEY)) {
-      throw new Error("Invalid Vapi key for outbound calls. Set VAPI_PRIVATE_API to your private server key (not public/web key).");
-    }
-
-    // Preferred: native Vapi PSTN outbound (most reliable speech path).
-    let outboundPhoneNumberId = Deno.env.get("VAPI_OUTBOUND_PHONE_NUMBER_ID");
-
-    if (useCustomKeys && settings?.vapi_private_key) {
-      try {
-        const pnRes = await fetch("https://api.vapi.ai/phone-number", {
-          headers: { Authorization: `Bearer ${settings.vapi_private_key}` }
-        });
-        if (pnRes.ok) {
-          const pns = await pnRes.json();
-          if (Array.isArray(pns) && pns.length > 0) {
-            outboundPhoneNumberId = pns[0].id;
-          } else {
-            outboundPhoneNumberId = undefined; // User has no phone numbers configured
-          }
-        } else {
-          outboundPhoneNumberId = undefined;
-        }
-      } catch (e) {
-        console.warn("Failed to fetch custom Vapi phone numbers", e);
-        outboundPhoneNumberId = undefined;
-      }
-    }
-
-    if (outboundPhoneNumberId) {
-      const nativeCreate = await fetch("https://api.vapi.ai/call", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${VAPI_KEY}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           customer: { number: cleanToNumber },
-          phoneNumberId: outboundPhoneNumberId,
+          phoneNumberId,
           assistant: {
             name: agent.name,
             firstMessage: combinedFirstMessage,
@@ -349,13 +246,11 @@ serve(async (req) => {
               maxTokens: 140,
               messages: [{ role: "system", content: systemPromptLocalized }],
             },
-            voice: voiceProvider === "vapi"
-              ? { voiceId }
-              : {
-                  provider: voiceProvider,
-                  voiceId,
-                  ...(voiceProvider === "11labs" && !voiceId.includes("vapi") ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
-                },
+            voice: voiceProvider === "vapi" ? { voiceId } : {
+              provider: voiceProvider,
+              voiceId,
+              ...(voiceProvider === "11labs" && !voiceId.includes("vapi") ? { model: "eleven_multilingual_v2", optimizeStreamingLatency: 3, stability: 0.45, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true } : {}),
+            },
             transcriber: { provider: "deepgram", model: "nova-2-general", language: langShort, smartFormat: true, endpointing: 140 },
             startSpeakingPlan: { waitSeconds: 0.15, smartEndpointingEnabled: true },
             stopSpeakingPlan: { numWords: 1, voiceSeconds: 0.12, backoffSeconds: 0.5 },
@@ -364,26 +259,128 @@ serve(async (req) => {
           },
         }),
       });
-      const nativeData = await nativeCreate.json();
-      if (!nativeCreate.ok) {
-        const msg = nativeData?.message || nativeData?.error || "Vapi native outbound failed";
-        throw new Error(msg);
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.message?.toLowerCase().includes("balance") || data?.error?.toLowerCase().includes("balance")) {
+          throw new Error("INSUFFICIENT_FUNDS_VAPI");
+        }
+        throw new Error(data?.message || data?.error || "Vapi call failed");
+      }
+      return data;
+    };
+
+    const placeUltravoxCall = async (apiKey: string) => {
+      const isUltravoxVoice = agent.voice_provider === "ultravox";
+      const uvVoice = isUltravoxVoice ? agent.voice_id : ULTRAVOX_FALLBACK_MAP[String(agent.voice_id ?? "").toLowerCase()] ?? ULTRAVOX_DEFAULT_VOICE;
+      const greeting = combinedFirstMessage ? `# Greeting\nStart by saying: "${combinedFirstMessage}"\n\n` : "";
+      const res = await fetch("https://api.ultravox.ai/api/calls", {
+        method: "POST",
+        headers: { "X-API-Key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemPrompt: greeting + systemPromptLocalized,
+          model: "fixie-ai/ultravox",
+          systemVoice: uvVoice,
+          languageHint: langShort,
+          temperature: Number(agent.temperature ?? 0.25),
+          firstSpeaker: "FIRST_SPEAKER_AGENT",
+          medium: { twilio: {} },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.detail?.toLowerCase().includes("balance") || data?.message?.toLowerCase().includes("balance")) {
+          throw new Error("INSUFFICIENT_FUNDS_ULTRAVOX");
+        }
+        throw new Error(data?.detail || data?.message || "Ultravox call failed");
+      }
+      return data;
+    };
+
+    let activePlatform = platform;
+    let failoverMessage = "";
+
+    if (activePlatform === "ultravox") {
+      try {
+        const ULTRAVOX_KEY = (useCustomKeys ? settings?.ultravox_api_key : undefined) || Deno.env.get("ULTRAVOX_API_KEY");
+        if (!ULTRAVOX_KEY) throw new Error("ULTRAVOX_API_KEY not configured");
+        
+        const ud = await placeUltravoxCall(ULTRAVOX_KEY);
+        
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
+        const tBody = new URLSearchParams({ To: cleanToNumber, From: tFrom, Twiml: twiml });
+        const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, {
+          method: "POST",
+          headers: { Authorization: "Basic " + btoa(`${tSid}:${tTok}`), "Content-Type": "application/x-www-form-urlencoded" },
+          body: tBody,
+        });
+        const td = await tr.json();
+        if (!tr.ok) throw new Error(td?.message || "Twilio dial failed");
+
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from("calls").insert({ user_id: user!.id, org_id: agent.org_id ?? null, agent_id: agentId, direction: "outbound", to_number: cleanToNumber, from_number: tFrom, status: "queued", vapi_call_id: td.sid });
+        return new Response(JSON.stringify({ ok: true, callId: td.sid, ultravoxCallId: ud.callId || ud.id, platform: "ultravox+twilio" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e: any) {
+        if (e.message === "INSUFFICIENT_FUNDS_ULTRAVOX") {
+          console.warn("Ultravox balance 0, attempting failover to Vapi...");
+          activePlatform = "vapi";
+          failoverMessage = "Model U had 0 balance. Switched to Model V.";
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    // Vapi Section (or Failover from Ultravox)
+    if (activePlatform === "vapi") {
+      const VAPI_KEY = (useCustomKeys ? settings?.vapi_private_key : undefined) || Deno.env.get("VAPI_PRIVATE_API") || Deno.env.get("VAPI_API");
+      if (!VAPI_KEY) throw new Error("VAPI private key missing.");
+
+      // Preferred: native Vapi PSTN outbound
+      let outboundPhoneNumberId = Deno.env.get("VAPI_OUTBOUND_PHONE_NUMBER_ID");
+      if (useCustomKeys && settings?.vapi_private_key) {
+        try {
+          const pnRes = await fetch("https://api.vapi.ai/phone-number", { headers: { Authorization: `Bearer ${settings.vapi_private_key}` } });
+          if (pnRes.ok) {
+            const pns = await pnRes.json();
+            if (Array.isArray(pns) && pns.length > 0) outboundPhoneNumberId = pns[0].id;
+          }
+        } catch (e) { console.warn("Phone number fetch failed", e); }
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from("calls").insert({
-        user_id: user!.id,
-        org_id: agent.org_id ?? null,
-        agent_id: agentId,
-        direction: "outbound",
-        to_number: cleanToNumber,
-        from_number: tFrom,
-        status: "queued",
-        vapi_call_id: nativeData.id ?? null,
-      });
-      return new Response(JSON.stringify({ ok: true, callId: nativeData.id, vapiCallId: nativeData.id, platform: "vapi-native" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (outboundPhoneNumberId) {
+        try {
+          const nativeData = await placeNativeVapiCall(VAPI_KEY, outboundPhoneNumberId);
+          const { data: { user } } = await supabase.auth.getUser();
+          await supabase.from("calls").insert({ user_id: user!.id, org_id: agent.org_id ?? null, agent_id: agentId, direction: "outbound", to_number: cleanToNumber, from_number: tFrom, status: "queued", vapi_call_id: nativeData.id ?? null });
+          return new Response(JSON.stringify({ ok: true, callId: nativeData.id, vapiCallId: nativeData.id, platform: "vapi-native", failover: !!failoverMessage, message: failoverMessage }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (e: any) {
+          if (e.message === "INSUFFICIENT_FUNDS_VAPI") {
+            if (platform === "vapi") { // Only retry Ultravox if we haven't already tried it (primary was Vapi)
+              console.warn("Vapi balance 0, attempting failover to Ultravox...");
+              const ULTRAVOX_KEY_FALLBACK = (useCustomKeys ? settings?.ultravox_api_key : undefined) || Deno.env.get("ULTRAVOX_API_KEY");
+              if (ULTRAVOX_KEY_FALLBACK) {
+                 const ud = await placeUltravoxCall(ULTRAVOX_KEY_FALLBACK);
+                 const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${ud.joinUrl}"/></Connect></Response>`;
+                 const tBody = new URLSearchParams({ To: cleanToNumber, From: tFrom, Twiml: twiml });
+                 const tr = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${tSid}/Calls.json`, { method: "POST", headers: { Authorization: "Basic " + btoa(`${tSid}:${tTok}`), "Content-Type": "application/x-www-form-urlencoded" }, body: tBody });
+                 const td = await tr.json();
+                 if (!tr.ok) throw new Error(td?.message || "Twilio dial failed");
+                 const { data: { user } } = await supabase.auth.getUser();
+                 await supabase.from("calls").insert({ user_id: user!.id, org_id: agent.org_id ?? null, agent_id: agentId, direction: "outbound", to_number: cleanToNumber, from_number: tFrom, status: "queued", vapi_call_id: td.sid });
+                 return new Response(JSON.stringify({ ok: true, callId: td.sid, ultravoxCallId: ud.callId || ud.id, platform: "ultravox+twilio", failover: true, message: "Model V had 0 balance. Switched to Model U." }), {
+                   headers: { ...corsHeaders, "Content-Type": "application/json" },
+                 });
+              }
+            }
+            return json({ ok: false, error: "Your Hexa Model V Wallet Balance is 0. Model U not configured for failover.", code: "INSUFFICIENT_FUNDS" });
+          }
+          throw e;
+        }
+      }
     }
 
     // Fallback: Twilio bridge to Vapi websocket (requires stable stream setup).

@@ -152,6 +152,23 @@ serve(async (req) => {
 
     if (!VAPI_PRIVATE_KEY) return json({ error: "Vapi key is not configured." });
 
+    // Pre-check balance before issuing token for calls
+    if (action === "token") {
+      try {
+        const balRes = await fetch("https://api.vapi.ai/me", {
+          headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
+        });
+        if (balRes.ok) {
+          const balData = await balRes.json();
+          if (typeof balData.balance === "number" && balData.balance <= 0) {
+            return json({ error: "Your Hexa Model V Wallet Balance is 0. Switching to Model U...", code: "INSUFFICIENT_FUNDS", platform: "vapi" }, 200);
+          }
+        }
+      } catch (e) {
+        console.warn("Wallet pre-check failed", e);
+      }
+    }
+
     if (cachedToken && !userVapiPrivateKey) {
       return json({ publicKey: cachedToken });
     }

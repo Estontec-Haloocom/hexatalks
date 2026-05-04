@@ -332,6 +332,14 @@ const AgentDetail = () => {
     toast({ title: error ? "Save failed" : "Saved", description: error ? fmtErr(error) : undefined, variant: error ? "destructive" : undefined });
   };
 
+  const [activeEngine, setActiveEngine] = useState<string>("");
+
+  useEffect(() => {
+    if (agent && !activeEngine) {
+      setActiveEngine(agent.voice_provider === "ultravox" ? "Hexa Model U" : "Hexa Model V");
+    }
+  }, [agent, activeEngine]);
+
   const startCall = async () => {
     if (!agent) return;
     setCallStatus("connecting");
@@ -342,7 +350,12 @@ const AgentDetail = () => {
       ctrl.on("status", (s) => setCallStatus(s));
       ctrl.on("volume", (v) => setVolume(v));
       ctrl.on("transcript", (t) => setTranscript((prev) => [...prev, t]));
-      ctrl.on("error", (e) => {
+      ctrl.on("error", (e: any) => {
+        if (e.isFailover) {
+          toast({ title: "Auto-Failover", description: e.message });
+          setActiveEngine(e.message.includes("Model U") ? "Hexa Model U" : "Hexa Model V");
+          return;
+        }
         toast({ title: "Call error", description: fmtErr(e), variant: "destructive" });
         setCallStatus("idle");
       });
@@ -386,6 +399,11 @@ const AgentDetail = () => {
       });
       if (error) throw error;
       if (data && data.ok === false) throw new Error(data.error || "Could not place call");
+      
+      if (data?.failover) {
+        toast({ title: "Auto-Failover", description: data.message });
+      }
+      
       toast({ title: "Call queued", description: `Calling ${to}…` });
       setDestNumber("");
       await reloadCalls();
@@ -506,11 +524,11 @@ const AgentDetail = () => {
                       <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Active Engine</div>
                       <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1 border border-border/50">
                         <span className="text-[11px] font-bold text-primary">
-                          {agent.voice_provider === "ultravox" ? "Hexa Model U" : "Hexa Model V"}
+                          {activeEngine}
                         </span>
                         <div className="h-3 w-px bg-border/50" />
                         <span className="text-[10px] font-medium text-muted-foreground">
-                          {agent.voice_provider === "ultravox" ? "Native Ultra" : "Vapi Core"}
+                          {activeEngine === "Hexa Model U" ? "Native Ultra" : "Vapi Core"}
                         </span>
                       </div>
                     </div>

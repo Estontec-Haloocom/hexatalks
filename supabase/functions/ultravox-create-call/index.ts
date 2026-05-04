@@ -43,6 +43,24 @@ serve(async (req) => {
     const KEY = ultravox_api_key || Deno.env.get("ULTRAVOX_API_KEY");
     if (!KEY) return json({ error: "ULTRAVOX_API_KEY not configured" }, 400);
 
+    // Pre-check balance before creating calls
+    if (action === "call") {
+      try {
+        const balRes = await fetch("https://api.ultravox.ai/api/me", {
+          headers: { "X-API-Key": KEY },
+        });
+        if (balRes.ok) {
+          const balData = await balRes.json();
+          const balance = typeof balData.balance === "number" ? balData.balance : (balData.id ? 100.00 : 0);
+          if (balance <= 0) {
+            return json({ error: "Your Hexa Model U Wallet Balance is 0. Switching to Model V...", code: "INSUFFICIENT_FUNDS", platform: "ultravox" }, 200);
+          }
+        }
+      } catch (e) {
+        console.warn("Ultravox balance check failed", e);
+      }
+    }
+
     if (action === "wallet") {
       try {
         const res = await fetch("https://api.ultravox.ai/api/me", {
