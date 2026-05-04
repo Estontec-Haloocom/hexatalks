@@ -264,7 +264,8 @@ serve(async (req) => {
         if (data?.message?.toLowerCase().includes("balance") || data?.error?.toLowerCase().includes("balance")) {
           throw new Error("INSUFFICIENT_FUNDS_VAPI");
         }
-        throw new Error(data?.message || data?.error || "Vapi call failed");
+        const errMsg = data?.message || data?.error || "Hexa Model V call failed";
+        throw new Error(errMsg.replace(/vapi/gi, "Hexa Model V"));
       }
       return data;
     };
@@ -291,7 +292,8 @@ serve(async (req) => {
         if (data?.detail?.toLowerCase().includes("balance") || data?.message?.toLowerCase().includes("balance")) {
           throw new Error("INSUFFICIENT_FUNDS_ULTRAVOX");
         }
-        throw new Error(data?.detail || data?.message || "Ultravox call failed");
+        const errMsg = data?.detail || data?.message || "Hexa Model U call failed";
+        throw new Error(errMsg.replace(/ultravox/gi, "Hexa Model U"));
       }
       return data;
     };

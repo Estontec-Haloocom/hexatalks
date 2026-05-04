@@ -87,7 +87,13 @@ const fmtErr = (e: any): string => {
     return String(value);
   };
 
-  return toText(e) ?? "Unknown error";
+  let raw = toText(e) ?? "Unknown error";
+  
+  // Apply branding to technical error messages
+  return raw
+    .replace(/vapi/gi, "Hexa Model V")
+    .replace(/ultravox/gi, "Hexa Model U")
+    .replace(/Your Wallet Balance is 0/gi, "Your Model Wallet balance is 0");
 };
 
 // Friendly character names → ElevenLabs voice IDs
