@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Plus, Mic, Trash2, Wallet, Zap, ShieldCheck, AlertCircle, RefreshCw } from "lucide-react";
+import { Bot, Plus, Mic, Trash2, Wallet, Zap, ShieldCheck, AlertCircle, RefreshCw, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { useOrg } from "@/contexts/OrgContext";
@@ -8,8 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { INDUSTRIES } from "@/lib/industries";
 import { useToast } from "@/hooks/use-toast";
-import { useDevSettings } from "@/hooks/use-dev-settings";
+import { useDevSettings, type VoicePlatform } from "@/hooks/use-dev-settings";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Agent = {
   id: string;
@@ -28,7 +34,7 @@ const Agents = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { currentOrgId } = useOrg();
   const { toast } = useToast();
-  const { settings } = useDevSettings();
+  const { settings, update: updateSettings } = useDevSettings();
 
   const [walletBalances, setWalletBalances] = useState<{ vapi: number | null; ultravox: number | null }>({ vapi: null, ultravox: null });
   const [walletLoading, setWalletLoading] = useState(false);
@@ -62,6 +68,9 @@ const Agents = () => {
   useEffect(() => {
     fetchWalletBalances();
   }, [settings?.dev_mode_enabled, settings?.vapi_private_key, settings?.ultravox_api_key]);
+
+  const currentBalance = settings?.voice_platform === "vapi" ? walletBalances.vapi : walletBalances.ultravox;
+  const currentModelName = settings?.voice_platform === "vapi" ? "Model V" : "Model U";
 
   const loadAgents = async () => {
     if (!currentOrgId) { setAgents([]); setLoading(false); return; }
@@ -114,106 +123,64 @@ const Agents = () => {
   return (
     <>
       <PageHeader title="Agents" description="Voice AI agents you've created." actions={
-        <Button asChild><Link to="/app/agents/new"><Plus className="h-4 w-4" /> New agent</Link></Button>
+        <div className="flex items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10 gap-3 border-border/50 bg-background px-4 font-semibold shadow-sm hover:bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <div className={cn("h-2 w-2 rounded-full", (currentBalance ?? 0) > 0 ? "bg-success animate-pulse" : "bg-destructive")} />
+                  <span className="text-xs uppercase tracking-wider">{currentModelName}</span>
+                </div>
+                <div className="h-4 w-px bg-border/50" />
+                <span className="text-sm">
+                  {currentBalance !== null ? `$${currentBalance.toFixed(2)}` : "—"}
+                </span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              <DropdownMenuItem 
+                className="flex items-center justify-between gap-4 py-2.5"
+                onClick={() => updateSettings({ voice_platform: "vapi" })}
+              >
+                <div className="flex items-center gap-2">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  <span className="font-medium">Model V</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {walletBalances.vapi !== null ? `$${walletBalances.vapi.toFixed(2)}` : "—"}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="flex items-center justify-between gap-4 py-2.5"
+                onClick={() => updateSettings({ voice_platform: "ultravox" })}
+              >
+                <div className="flex items-center gap-2">
+                  <Mic className="h-3.5 w-3.5 text-primary" />
+                  <span className="font-medium">Model U</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {walletBalances.ultravox !== null ? `$${walletBalances.ultravox.toFixed(2)}` : "—"}
+                </span>
+              </DropdownMenuItem>
+              <div className="border-t border-border mt-1 pt-1">
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 py-2 text-xs text-muted-foreground hover:text-primary"
+                  onClick={(e) => { e.stopPropagation(); fetchWalletBalances(); }}
+                  disabled={walletLoading}
+                >
+                  <RefreshCw className={cn("h-3 w-3", walletLoading && "animate-spin")} />
+                  Refresh Balances
+                </DropdownMenuItem>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button asChild><Link to="/app/agents/new"><Plus className="h-4 w-4" /> New agent</Link></Button>
+        </div>
       } />
       
-      <div className="px-5 py-4 sm:px-8">
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Model V (Vapi) Wallet */}
-          <Card className={cn(
-            "relative overflow-hidden p-5 transition-all",
-            settings?.voice_platform === "vapi" ? "border-primary/50 bg-primary/5 shadow-md" : "opacity-80"
-          )}>
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Zap className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-sm font-bold uppercase tracking-wider">Hexa Model V</h4>
-                    {settings?.voice_platform === "vapi" && (
-                      <span className="flex h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                    )}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Vapi.ai Core Engine</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center justify-end gap-1">
-                  Wallet Balance
-                  <button onClick={fetchWalletBalances} disabled={walletLoading} className="hover:text-primary transition-colors">
-                    <RefreshCw className={cn("h-3 w-3", walletLoading && "animate-spin")} />
-                  </button>
-                </div>
-                <div className="text-xl font-display font-bold tracking-tight">
-                  {walletBalances.vapi !== null ? `$${walletBalances.vapi.toFixed(2)}` : "—"}
-                </div>
-              </div>
-            </div>
-            {settings?.voice_platform === "vapi" && walletBalances.vapi !== null && walletBalances.vapi <= 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/10 p-2 text-[11px] text-destructive font-bold border border-destructive/20 animate-in fade-in slide-in-from-top-1">
-                <AlertCircle className="h-3.5 w-3.5" />
-                No funds! Auto-failover to Model U active.
-              </div>
-            )}
-            {settings?.voice_platform === "vapi" && (walletBalances.vapi ?? 0) > 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg bg-success/10 p-2 text-[11px] text-success font-bold border border-success/20">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Engine healthy and ready.
-              </div>
-            )}
-          </Card>
-
-          {/* Model U (Ultravox) Wallet */}
-          <Card className={cn(
-            "relative overflow-hidden p-5 transition-all",
-            settings?.voice_platform === "ultravox" ? "border-primary/50 bg-primary/5 shadow-md" : "opacity-80"
-          )}>
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Mic className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-sm font-bold uppercase tracking-wider">Hexa Model U</h4>
-                    {settings?.voice_platform === "ultravox" && (
-                      <span className="flex h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                    )}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Ultravox Native Intelligence</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center justify-end gap-1">
-                  Wallet Balance
-                  <button onClick={fetchWalletBalances} disabled={walletLoading} className="hover:text-primary transition-colors">
-                    <RefreshCw className={cn("h-3 w-3", walletLoading && "animate-spin")} />
-                  </button>
-                </div>
-                <div className="text-xl font-display font-bold tracking-tight">
-                  {walletBalances.ultravox !== null ? `$${walletBalances.ultravox.toFixed(2)}` : "—"}
-                </div>
-              </div>
-            </div>
-            {settings?.voice_platform === "ultravox" && walletBalances.ultravox !== null && walletBalances.ultravox <= 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/10 p-2 text-[11px] text-destructive font-bold border border-destructive/20 animate-in fade-in slide-in-from-top-1">
-                <AlertCircle className="h-3.5 w-3.5" />
-                No funds! Auto-failover to Model V active.
-              </div>
-            )}
-            {settings?.voice_platform === "ultravox" && (walletBalances.ultravox ?? 0) > 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg bg-success/10 p-2 text-[11px] text-success font-bold border border-success/20">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Engine healthy and ready.
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-
-      <div className="px-5 pb-6 sm:p-8 pt-0">
+      <div className="px-5 pb-6 sm:p-8 pt-6">
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : agents.length === 0 ? (
