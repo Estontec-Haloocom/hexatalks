@@ -25,15 +25,16 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const {
+      action = "call",
       systemPrompt,
-      firstSpeaker = "FIRST_SPEAKER_AGENT", // agent greets first
-      voice,                                // ultravox voice id (e.g. "Mark") — optional
-      languageHint,                         // e.g. "en", "hi"
+      firstSpeaker = "FIRST_SPEAKER_AGENT",
+      voice,
+      languageHint,
       model = "fixie-ai/ultravox",
       temperature = 0.25,
       maxDurationSec = 600,
-      medium = "web",                       // "web" or "twilio"
-      twilioOutgoing,                       // for outbound twilio: { to: "+1..." }
+      medium = "web",
+      twilioOutgoing,
       agentId,
       callerNumber,
       ultravox_api_key,
@@ -41,6 +42,21 @@ serve(async (req) => {
 
     const KEY = ultravox_api_key || Deno.env.get("ULTRAVOX_API_KEY");
     if (!KEY) return json({ error: "ULTRAVOX_API_KEY not configured" }, 400);
+
+    if (action === "wallet") {
+      try {
+        const res = await fetch("https://api.ultravox.ai/api/me", {
+          headers: { "X-API-Key": KEY },
+        });
+        if (!res.ok) throw new Error("Ultravox wallet fetch failed");
+        const data = await res.json();
+        // Ultravox doesn't provide direct balance in /me always, but we'll try to get it if available
+        // or return a placeholder if not.
+        return json({ balance: data.balance ?? 0, user: data.username });
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Failed to fetch wallet" }, 500);
+      }
+    }
 
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "Not authenticated" }, 401);
