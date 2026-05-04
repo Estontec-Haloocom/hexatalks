@@ -41,10 +41,7 @@ export const WalletDropdown = () => {
             await updateSettings({ voice_platform: "vapi" });
           }}
         >
-          <div className="flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-semibold">Model V</span>
-          </div>
+          <span className="text-xs font-semibold">Model V</span>
           <span className="text-[10px] font-mono text-muted-foreground">
             ${(balances.vapi ?? 0).toFixed(2)}
           </span>
@@ -58,10 +55,7 @@ export const WalletDropdown = () => {
             await updateSettings({ voice_platform: "ultravox" });
           }}
         >
-          <div className="flex items-center gap-2">
-            <Mic className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-semibold">Model U</span>
-          </div>
+          <span className="text-xs font-semibold">Model U</span>
           <span className="text-[10px] font-mono text-muted-foreground">
             ${(balances.ultravox ?? 0).toFixed(2)}
           </span>
