@@ -401,7 +401,11 @@ const AgentDetail = () => {
       // Unified outbound runtime: same agent config + platform logic as test mode,
       // while still dialing through the active telephony provider from server-side secrets.
       const { data, error } = await supabase.functions.invoke("vapi-place-call", {
-        body: { agentId: agent.id, toNumber: to },
+        body: { 
+          agentId: agent.id, 
+          toNumber: to,
+          platform: activeEngine === "Hexa Model U" ? "ultravox" : "vapi"
+        },
       });
       if (error) throw error;
       if (data && data.ok === false) throw new Error(data.error || "Could not place call");

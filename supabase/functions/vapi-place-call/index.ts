@@ -110,7 +110,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: auth } } },
     );
 
-    const { agentId, toNumber } = await req.json();
+    const { agentId, toNumber, platform: platformOverride } = await req.json();
     const cleanToNumber = normalizeE164(toNumber);
     if (!agentId || !cleanToNumber) throw new Error("Enter a valid destination number with country code, for example +919876543210.");
     if (isRestrictedNumber(cleanToNumber)) throw new Error("Premium or special-service numbers are blocked. Use a regular mobile or landline number.");
@@ -125,13 +125,14 @@ serve(async (req) => {
 
     const useCustomKeys = settings?.dev_mode_enabled;
     // Routing rule:
-    // - If developer selected Ultravox -> use Ultravox
-    // - If agent voice provider is Ultravox -> use Ultravox
-    // - Otherwise default to Vapi
+    // - Priority 1: Platform override from request
+    // - Priority 2: Developer selected platform in settings
+    // - Priority 3: Agent voice provider
+    // - Default: vapi
     const platform =
-      settings?.voice_platform === "ultravox" || agent?.voice_provider === "ultravox"
-        ? "ultravox"
-        : "vapi";
+      platformOverride ||
+      settings?.voice_platform ||
+      (agent?.voice_provider === "ultravox" ? "ultravox" : "vapi");
 
     const blocksText = await buildBlocks(supabase, agent.org_id ?? null);
     const orgPromptIdeText = await buildOrgPromptIde(supabase, agent.org_id ?? null);
@@ -284,7 +285,7 @@ serve(async (req) => {
           languageHint: langShort,
           temperature: Number(agent.temperature ?? 0.25),
           firstSpeaker: "FIRST_SPEAKER_AGENT",
-          medium: { twilio: {} },
+          medium: { web: {} }, // Use web medium to get joinUrl for Twilio Stream bridging
         }),
       });
       const data = await res.json();
