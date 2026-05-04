@@ -487,17 +487,34 @@ const AgentDetail = () => {
                   className="hidden sm:block relative z-10" 
                 />
                 
-                <div className="mt-6 relative z-10 inline-flex items-center gap-2 rounded-full border border-border bg-background/80 backdrop-blur-sm px-4 py-1.5 text-xs font-medium shadow-sm">
-                  <span className={cn("h-2 w-2 rounded-full shadow-[0_0_8px_currentColor]",
-                    callStatus === "active" ? "bg-success animate-pulse text-success" :
-                    callStatus === "connecting" ? "bg-warning animate-pulse text-warning" : "bg-muted-foreground text-muted-foreground"
-                  )} />
-                  <span className="uppercase tracking-wider">
-                    {callStatus === "idle" && "Ready"}
-                    {callStatus === "connecting" && "Establishing connection…"}
-                    {callStatus === "active" && (volume > 0.05 ? "AI Listening…" : "AI Speaking…")}
-                    {callStatus === "ended" && "Call ended"}
-                  </span>
+                <div className="mt-6 relative z-10 flex flex-col items-center gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/80 backdrop-blur-sm px-4 py-1.5 text-xs font-medium shadow-sm">
+                    <span className={cn("h-2 w-2 rounded-full shadow-[0_0_8px_currentColor]",
+                      callStatus === "active" ? "bg-success animate-pulse text-success" :
+                      callStatus === "connecting" ? "bg-warning animate-pulse text-warning" : "bg-muted-foreground text-muted-foreground"
+                    )} />
+                    <span className="uppercase tracking-wider">
+                      {callStatus === "idle" && "Ready"}
+                      {callStatus === "connecting" && "Establishing connection…"}
+                      {callStatus === "active" && (volume > 0.05 ? "AI Listening…" : "AI Speaking…")}
+                      {callStatus === "ended" && "Call ended"}
+                    </span>
+                  </div>
+                  
+                  {callStatus === "active" && (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Active Engine</div>
+                      <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1 border border-border/50">
+                        <span className="text-[11px] font-bold text-primary">
+                          {agent.voice_provider === "ultravox" ? "Hexa Model U" : "Hexa Model V"}
+                        </span>
+                        <div className="h-3 w-px bg-border/50" />
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {agent.voice_provider === "ultravox" ? "Native Ultra" : "Vapi Core"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-8 relative z-10">
