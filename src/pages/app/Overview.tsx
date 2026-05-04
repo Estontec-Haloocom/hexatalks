@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/AppLayout";
 import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { WalletDropdown } from "@/components/app/WalletDropdown";
 
 const Overview = () => {
   const [stats, setStats] = useState({ agents: 0, numbers: 0, calls: 0 });
@@ -31,7 +32,11 @@ const Overview = () => {
 
   return (
     <>
-      <PageHeader title="Overview" description="Your voice AI workspace at a glance." />
+      <PageHeader 
+        title="Overview" 
+        description="Your voice AI workspace at a glance." 
+        actions={<WalletDropdown />}
+      />
       <div className="space-y-6 px-5 py-6 sm:space-y-8 sm:p-8">
         <div className="grid gap-3 sm:gap-4 sm:grid-cols-3">
           {cards.map((c) => (

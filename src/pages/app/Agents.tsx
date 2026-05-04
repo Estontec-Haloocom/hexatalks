@@ -1,21 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Plus, Mic, Trash2, Wallet, Zap, ShieldCheck, AlertCircle, RefreshCw, ChevronDown } from "lucide-react";
+import { Bot, Plus, Mic, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { useOrg } from "@/contexts/OrgContext";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { INDUSTRIES } from "@/lib/industries";
 import { useToast } from "@/hooks/use-toast";
-import { useDevSettings, type VoicePlatform } from "@/hooks/use-dev-settings";
-import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { WalletDropdown } from "@/components/app/WalletDropdown";
 
 type Agent = {
   id: string;
@@ -34,43 +26,6 @@ const Agents = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { currentOrgId } = useOrg();
   const { toast } = useToast();
-  const { settings, update: updateSettings } = useDevSettings();
-
-  const [walletBalances, setWalletBalances] = useState<{ vapi: number | null; ultravox: number | null }>({ vapi: 0, ultravox: 0 });
-  const [walletLoading, setWalletLoading] = useState(false);
-
-  const fetchWalletBalances = async () => {
-    setWalletLoading(true);
-    try {
-      const results = await Promise.allSettled([
-        supabase.functions.invoke("vapi-web-token", {
-          body: { action: "wallet", vapi_private_key: settings?.dev_mode_enabled ? settings.vapi_private_key : undefined }
-        }),
-        supabase.functions.invoke("ultravox-create-call", {
-          body: { action: "wallet", ultravox_api_key: settings?.dev_mode_enabled ? settings.ultravox_api_key : undefined }
-        })
-      ]);
-
-      const vapiRes = results[0].status === "fulfilled" ? results[0].value : null;
-      const uvRes = results[1].status === "fulfilled" ? results[1].value : null;
-
-      setWalletBalances({
-        vapi: typeof vapiRes?.data?.balance === "number" ? vapiRes.data.balance : 0,
-        ultravox: typeof uvRes?.data?.balance === "number" ? uvRes.data.balance : 0
-      });
-    } catch (e) {
-      console.error("Failed to fetch wallets", e);
-    } finally {
-      setWalletLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchWalletBalances();
-  }, [settings?.dev_mode_enabled, settings?.vapi_private_key, settings?.ultravox_api_key]);
-
-  const currentBalance = settings?.voice_platform === "vapi" ? walletBalances.vapi : walletBalances.ultravox;
-  const currentModelName = settings?.voice_platform === "vapi" ? "Model V" : "Model U";
 
   const loadAgents = async () => {
     if (!currentOrgId) { setAgents([]); setLoading(false); return; }
@@ -124,64 +79,7 @@ const Agents = () => {
     <>
       <PageHeader title="Agents" description="Voice AI agents you've created." actions={
         <div className="flex items-center gap-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-10 gap-3 border-border/50 bg-background px-4 font-semibold shadow-sm hover:bg-muted/50">
-                <div className="flex items-center gap-2">
-                  <div className={cn("h-2 w-2 rounded-full", (currentBalance ?? 0) > 0 ? "bg-success animate-pulse" : "bg-destructive")} />
-                  <span className="text-xs uppercase tracking-wider">{currentModelName}</span>
-                </div>
-                <div className="h-4 w-px bg-border/50" />
-                <span className="text-sm">
-                  ${(currentBalance ?? 0).toFixed(2)}
-                </span>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[200px]">
-              <DropdownMenuItem 
-                className="flex items-center justify-between gap-4 py-2.5"
-                onClick={async () => {
-                  await updateSettings({ voice_platform: "vapi" });
-                  fetchWalletBalances();
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <Zap className="h-3.5 w-3.5 text-primary" />
-                  <span className="font-medium">Model V</span>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  ${(walletBalances.vapi ?? 0).toFixed(2)}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="flex items-center justify-between gap-4 py-2.5"
-                onClick={async () => {
-                  await updateSettings({ voice_platform: "ultravox" });
-                  fetchWalletBalances();
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <Mic className="h-3.5 w-3.5 text-primary" />
-                  <span className="font-medium">Model U</span>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  ${(walletBalances.ultravox ?? 0).toFixed(2)}
-                </span>
-              </DropdownMenuItem>
-              <div className="border-t border-border mt-1 pt-1">
-                <DropdownMenuItem 
-                  className="flex items-center gap-2 py-2 text-xs text-muted-foreground hover:text-primary"
-                  onClick={(e) => { e.stopPropagation(); fetchWalletBalances(); }}
-                  disabled={walletLoading}
-                >
-                  <RefreshCw className={cn("h-3 w-3", walletLoading && "animate-spin")} />
-                  Refresh Balances
-                </DropdownMenuItem>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+          <WalletDropdown />
           <Button asChild><Link to="/app/agents/new"><Plus className="h-4 w-4" /> New agent</Link></Button>
         </div>
       } />
