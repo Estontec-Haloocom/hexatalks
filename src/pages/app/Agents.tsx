@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/AppLayout";
 import { useOrg } from "@/contexts/OrgContext";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { INDUSTRIES } from "@/lib/industries";
 import { useToast } from "@/hooks/use-toast";
 import { WalletDropdown } from "@/components/app/WalletDropdown";
