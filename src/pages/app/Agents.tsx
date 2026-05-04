@@ -36,7 +36,7 @@ const Agents = () => {
   const { toast } = useToast();
   const { settings, update: updateSettings } = useDevSettings();
 
-  const [walletBalances, setWalletBalances] = useState<{ vapi: number | null; ultravox: number | null }>({ vapi: null, ultravox: null });
+  const [walletBalances, setWalletBalances] = useState<{ vapi: number | null; ultravox: number | null }>({ vapi: 0, ultravox: 0 });
   const [walletLoading, setWalletLoading] = useState(false);
 
   const fetchWalletBalances = async () => {
@@ -55,8 +55,8 @@ const Agents = () => {
       const uvRes = results[1].status === "fulfilled" ? results[1].value : null;
 
       setWalletBalances({
-        vapi: vapiRes?.data?.balance ?? null,
-        ultravox: uvRes?.data?.balance ?? null
+        vapi: typeof vapiRes?.data?.balance === "number" ? vapiRes.data.balance : 0,
+        ultravox: typeof uvRes?.data?.balance === "number" ? uvRes.data.balance : 0
       });
     } catch (e) {
       console.error("Failed to fetch wallets", e);
@@ -133,7 +133,7 @@ const Agents = () => {
                 </div>
                 <div className="h-4 w-px bg-border/50" />
                 <span className="text-sm">
-                  {currentBalance !== null ? `$${currentBalance.toFixed(2)}` : "—"}
+                  ${(currentBalance ?? 0).toFixed(2)}
                 </span>
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </Button>
@@ -141,26 +141,32 @@ const Agents = () => {
             <DropdownMenuContent align="end" className="w-[200px]">
               <DropdownMenuItem 
                 className="flex items-center justify-between gap-4 py-2.5"
-                onClick={() => updateSettings({ voice_platform: "vapi" })}
+                onClick={async () => {
+                  await updateSettings({ voice_platform: "vapi" });
+                  fetchWalletBalances();
+                }}
               >
                 <div className="flex items-center gap-2">
                   <Zap className="h-3.5 w-3.5 text-primary" />
                   <span className="font-medium">Model V</span>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {walletBalances.vapi !== null ? `$${walletBalances.vapi.toFixed(2)}` : "—"}
+                  ${(walletBalances.vapi ?? 0).toFixed(2)}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuItem 
                 className="flex items-center justify-between gap-4 py-2.5"
-                onClick={() => updateSettings({ voice_platform: "ultravox" })}
+                onClick={async () => {
+                  await updateSettings({ voice_platform: "ultravox" });
+                  fetchWalletBalances();
+                }}
               >
                 <div className="flex items-center gap-2">
                   <Mic className="h-3.5 w-3.5 text-primary" />
                   <span className="font-medium">Model U</span>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {walletBalances.ultravox !== null ? `$${walletBalances.ultravox.toFixed(2)}` : "—"}
+                  ${(walletBalances.ultravox ?? 0).toFixed(2)}
                 </span>
               </DropdownMenuItem>
               <div className="border-t border-border mt-1 pt-1">

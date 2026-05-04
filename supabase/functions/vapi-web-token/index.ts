@@ -66,16 +66,21 @@ serve(async (req) => {
     const VAPI_PUBLIC_KEY = Deno.env.get("VAPI_PUBLIC_KEY");
 
     if (action === "wallet") {
-      if (!VAPI_PRIVATE_KEY) return json({ error: "API key required" }, 400);
+      if (!VAPI_PRIVATE_KEY) return json({ balance: 0 });
       try {
         const res = await fetch("https://api.vapi.ai/me", {
           headers: { Authorization: `Bearer ${VAPI_PRIVATE_KEY}` },
         });
-        if (!res.ok) throw new Error("Vapi wallet fetch failed");
+        if (!res.ok) {
+          console.error("Vapi wallet fetch failed", res.status);
+          return json({ balance: 0, error: "Auth failed" });
+        }
         const data = await res.json();
-        return json({ balance: data.balance ?? 0 });
+        // Vapi returns balance as a number in USD
+        return json({ balance: typeof data.balance === "number" ? data.balance : 0 });
       } catch (e) {
-        return json({ error: e instanceof Error ? e.message : "Failed to fetch wallet" }, 500);
+        console.error("Vapi wallet error", e);
+        return json({ balance: 0 });
       }
     }
 
